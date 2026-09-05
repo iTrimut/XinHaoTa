@@ -1,0 +1,26 @@
+# ===== 运行时数据（自动生成，绝不入库）=====
+data/
+
+# ===== 生成产物 =====
+output/
+
+# ===== 运行时配置（本地自选/密码/主题，各有隐私，不入库）=====
+config.json
+config.json.bak
+
+# ===== 云flared 二进制由用户自备，不入库 =====
+bin/
+
+# ===== Python =====
+__pycache__/
+*.pyc
+
+# ===== 前端依赖（echarts.min.js 已内置于 web/）=====
+web/node_modules/
+
+# ===== 截图/调试残留 =====
+*.png
+web/*.png
+web/dom*.txt
+web/console.log
+web/*.err

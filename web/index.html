@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>信号塔</title>
+<script src="/echarts.min.js"></script>
+<style>
+  /* ===== 语义色 token（各主题在 body[data-theme] 覆盖） ===== */
+  body{--bg:#0e1520; --panel:#161d29; --panel2:#0f1620; --border:#232c3b;
+    --txt:#e6edf3; --txt2:#c9d4e2; --muted:#8b98aa; --accent:#3b82f6; --green:#12b76a;
+    --amber:#ffb020; --red:#f04438; --blue:#3b82f6; --up:#ef5350; --down:#26a69a;
+    --link:#9ecbff; --head:#dbe4f0; --hover:#18222f; --swbg:#2a3447; --swdot:#8b98aa;
+    --r-card:12px; --r-btn:20px; --glass:0; --cardbg:var(--panel); --shadow:none;
+    background:var(--bg);color:var(--txt)}
+  /* ===== 主题 a · 原版深色（默认） ===== */
+  body[data-theme="a"]{--bg:#0e1520;--panel:#161d29;--panel2:#0f1620;--border:#232c3b;--txt:#e6edf3;--txt2:#c9d4e2;--muted:#8b98aa;--accent:#3b82f6;--green:#12b76a;--amber:#ffb020;--red:#f04438;--blue:#3b82f6;--up:#ef5350;--down:#26a69a;--link:#9ecbff;--head:#dbe4f0;--hover:#18222f;--swbg:#2a3447;--swdot:#8b98aa;--r-card:12px;--r-btn:20px;--glass:0;--cardbg:var(--panel);--shadow:none;background:#0e1520}
+  /* ===== 主题 b · 苹果系深色玻璃 ===== */
+  body[data-theme="b"]{--bg:#0a0a12;--panel:rgba(34,34,52,.55);--panel2:rgba(255,255,255,.055);--border:rgba(255,255,255,.1);--txt:#f2f2f7;--txt2:#e6e6ee;--muted:#9b9bab;--accent:#0a84ff;--green:#30d158;--amber:#ffd60a;--red:#ff453a;--blue:#0a84ff;--up:#ff453a;--down:#30d158;--link:#8ec7ff;--head:#f2f2f7;--hover:rgba(255,255,255,.09);--swbg:rgba(255,255,255,.18);--swdot:#cdcdd8;--r-card:20px;--r-btn:999px;--glass:1;--cardbg:rgba(34,34,52,.5);--shadow:0 12px 40px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08);
+    background:#0a0a12;
+    background-image:radial-gradient(1100px 520px at 82% -14%,rgba(10,132,255,.16),transparent 60%),radial-gradient(900px 500px at -6% 112%,rgba(48,209,88,.09),transparent 55%),radial-gradient(700px 420px at 50% 132%,rgba(255,255,255,.05),transparent 60%)}
+  body[data-theme="b"] .card, body[data-theme="b"] .stock-item, body[data-theme="b"] .sig-box, body[data-theme="b"] .modal-box, body[data-theme="b"] .ind-card{backdrop-filter:blur(22px) saturate(170%);-webkit-backdrop-filter:blur(22px) saturate(170%)}
+  body[data-theme="b"] header{background:rgba(10,10,18,.55);backdrop-filter:blur(26px);-webkit-backdrop-filter:blur(26px)}
+  body[data-theme="b"] .verdict-banner{color:var(--txt)}
+  /* ===== 主题 c · 黑金低光 ===== */
+  body[data-theme="c"]{--bg:#0a0a0a;--panel:#0f0f0f;--panel2:#191817;--border:#242321;--txt:#ece9e2;--txt2:#cfccc4;--muted:#6e6b64;--accent:#d9b36a;--green:#4bb875;--amber:#c9a468;--red:#d94a4a;--blue:#a7a28f;--up:#d94a4a;--down:#4bb875;--link:#d9b36a;--head:#ece9e2;--hover:#1f1d18;--swbg:#2c2a24;--swdot:#8d8779;--r-card:14px;--r-btn:999px;--glass:0;--cardbg:#0f0f0f;--shadow:0 0 0 1px rgba(217,179,106,.04);background:#0a0a0a}
+  body[data-theme="c"] .vb-buy{background:linear-gradient(135deg,rgba(217,179,106,.14),rgba(217,179,106,.03));color:var(--acc)}
+  body[data-theme="c"] .vb-sell{background:linear-gradient(135deg,rgba(217,74,74,.14),rgba(217,74,74,.03));color:var(--red)}
+  body[data-theme="c"] .vb-hold{background:linear-gradient(135deg,rgba(167,162,143,.14),rgba(167,162,143,.03));color:var(--blue)}
+  body[data-theme="c"] .vb-watch{background:linear-gradient(135deg,rgba(201,164,104,.16),rgba(201,164,104,.03));color:var(--amber)}
+  /* ===== 主题 d · 纸张浅色 ===== */
+  body[data-theme="d"]{--bg:#f5f4ef;--panel:#fff;--panel2:#f6f5f0;--border:#e4e1d7;--txt:#23262c;--txt2:#3a3d44;--muted:#8a8880;--accent:#0f6f63;--green:#218a5c;--amber:#a47f12;--red:#c33b3b;--blue:#3d6aa5;--up:#c33b3b;--down:#218a5c;--link:#0f6f63;--head:#1f2227;--hover:#eeece4;--swbg:#cbc9bf;--swdot:#8a8880;--r-card:14px;--r-btn:999px;--glass:0;--cardbg:#fff;--shadow:0 1px 3px rgba(60,55,35,.07);background:#f5f4ef}
+  body[data-theme="d"] .btn{color:var(--txt2)}
+  body[data-theme="d"] .btn.active{color:#fff}
+  body[data-theme="d"] header{background:#fff}
+  body[data-theme="d"] .verdict-banner .reason{color:var(--txt2)}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--txt)}
+  a{color:var(--link);text-decoration:none}
+  /* ---- 顶栏 ---- */
+  header{background:var(--panel);border-bottom:1px solid var(--border);padding:12px 22px;position:sticky;top:0;z-index:60;box-shadow:var(--shadow)}
+  header .toprow{display:flex;align-items:center;gap:14px}
+  header h1{margin:0;font-size:19px;font-weight:700;white-space:nowrap}
+  header .sub{color:var(--muted);font-size:12px;margin-top:4px}
+  /* ---- 主题切换下拉 ---- */
+  .themesel{display:flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--border);border-radius:var(--r-btn);padding:4px 6px 4px 12px;font-size:12px}
+  .themesel select{background:transparent;border:none;color:var(--txt2);font-size:12px;outline:none;cursor:pointer;max-width:110px}
+  .themesel .tl{color:var(--muted);font-size:11px;white-space:nowrap}
+  /* ---- 主体（左右等高） ---- */
+  .wrap{display:flex;gap:16px;padding:16px 22px;align-items:stretch}
+  .left{width:330px;flex:none;display:flex;flex-direction:column}
+  .right{flex:1;min-width:0;display:flex;flex-direction:column}
+  .card{background:var(--cardbg);border:1px solid var(--border);border-radius:var(--r-card);padding:16px;margin-bottom:14px;box-shadow:var(--shadow)}
+  .card:last-child{margin-bottom:0}
+  .right .card{flex:none}
+  /* 左栏: 大脑/市场 自然高, 自选股卡片吃掉剩余高度 */
+  .left .card{flex:none}
+  .left .card.grow{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
+  .left .card.grow .grow-scroll{flex:1 1 auto;min-height:0;overflow:auto}
+  /* 右栏详情: 弹性列, grid2 吃剩余高度 → 底部与左栏自选卡齐平 */
+  #detail{flex:1;display:flex;flex-direction:column;min-height:0}
+  #detail .verdict-banner, #detail > .card{flex:none}
+  #detail .grid2{flex:1 1 auto;min-height:0}
+  #detail .grid2 .card{height:100%;display:flex;flex-direction:column}
+  #detail .grid2 .card > :last-child{margin-bottom:auto}
+  .card h2{margin:0 0 12px;font-size:14px;color:var(--head);display:flex;align-items:center;gap:6px}
+  .card h2 .hint{font-weight:400;font-size:11px;color:var(--muted);margin-left:auto}
+  /* 自选股折叠按钮 */
+  .wl-more{display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;margin-top:2px;border:1px dashed var(--border);border-radius:10px;cursor:pointer;color:var(--muted);font-size:12px}
+  .wl-more:hover{border-color:var(--accent);color:var(--txt)}
+  /* ---- 市场环境 ---- */
+  .mkt .item{font-size:12.5px;line-height:1.7;padding:7px 0;border-bottom:1px dashed var(--border);color:var(--txt)}
+  .mkt .item:last-child{border-bottom:none}
+  .mkt .tag{font-weight:600;color:var(--link);margin-right:6px}
+  .badge{display:inline-block;padding:2px 9px;border-radius:9px;font-size:11px;font-weight:600;white-space:nowrap}
+  .b-buy{background:var(--green);color:#fff}.b-watch{background:var(--amber);color:#fff}
+  .b-sell{background:var(--red);color:#fff}.b-hold{background:var(--blue);color:#fff}
+  /* ---- 自选股 ---- */
+  .add-row{display:flex;gap:6px;margin-bottom:10px}
+  .add-row input{flex:1;background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:7px 9px;color:var(--txt);font-size:12.5px}
+  .add-row input:focus{outline:none;border-color:var(--accent)}
+  .add-row button{background:var(--accent);border:none;border-radius:8px;padding:7px 11px;font-size:12.5px;color:#fff;cursor:pointer}
+  .add-row button:hover{filter:brightness(1.1)}
+  .stock-item{border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer;background:var(--panel2);transition:.15s;position:relative}
+  .stock-item:hover,.stock-item.active{border-color:var(--accent);background:var(--hover)}
+  .stock-item .r1{display:flex;justify-content:space-between;align-items:center}
+  .stock-item .nm{font-weight:600;font-size:14px}
+  .stock-item .px{font-size:13px;color:var(--txt2)}
+  .up{color:var(--up)}.down{color:var(--down)}
+  .stock-item .r2{display:flex;justify-content:space-between;align-items:center;margin-top:7px;font-size:11px;color:var(--muted)}
+  .del{position:absolute;top:8px;right:8px;background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;line-height:1;padding:2px 4px;border-radius:5px}
+  .del:hover{color:var(--red);background:var(--hover)}
+  .dragging{opacity:.5;border-color:var(--accent)!important;background:var(--hover)!important}
+  .stock-item{cursor:grab}
+  .stock-item:active{cursor:grabbing}
+  /* ---- 大脑选择 ---- */
+  .brain-toggle{display:flex;align-items:center;justify-content:space-between;cursor:pointer;font-size:14px;font-weight:600;padding:4px 0}
+  .brain-toggle .arrow{transition:.2s;color:var(--muted)}
+  .brain-open .arrow{transform:rotate(90deg)}
+  .brain-body{overflow:hidden;max-height:0;transition:max-height .25s ease}
+  .brain-open .brain-body{max-height:700px;overflow:auto}
+  .bg-group{font-size:11px;color:var(--muted);margin:10px 0 5px;font-weight:600}
+  .bg-row{display:flex;align-items:center;justify-content:space-between;padding:7px 6px;border-bottom:1px dashed var(--border);font-size:12.5px}
+  .bg-row:last-child{border-bottom:none}
+  .bg-row .name{font-weight:500}
+  .bg-row .desc{font-size:11px;color:var(--muted);display:block;margin-top:2px}
+  .sw{position:relative;width:34px;height:19px;flex:none}
+  .sw input{opacity:0;width:0;height:0}
+  .sw .sl{position:absolute;inset:0;background:var(--swbg);border-radius:19px;transition:.2s}
+  .sw .sl:before{content:"";position:absolute;height:15px;width:15px;left:2px;top:2px;background:var(--swdot);border-radius:50%;transition:.2s}
+  .sw input:checked + .sl{background:var(--accent)}
+  .sw input:checked + .sl:before{transform:translateX(15px);background:#fff}
+  /* ---- 顶部最右下拉菜单(远程访问) ---- */
+  .remote-wrap{position:relative;margin-left:auto}
+  .remote-btn{display:inline-flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--border);border-radius:var(--r-btn,10px);padding:7px 12px;font-size:13px;cursor:pointer;color:var(--txt)}
+  .remote-btn:hover{border-color:var(--accent);color:var(--txt)}
+  .remote-btn .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+  .remote-btn .dot.on{background:var(--green)}
+  .remote-menu{position:absolute;right:0;top:calc(100% + 8px);background:var(--panel);border:1px solid var(--border);border-radius:12px;min-width:300px;box-shadow:0 12px 32px rgba(0,0,0,.4);z-index:60;display:none;padding:6px}
+  .remote-menu.show{display:block}
+  .rm-title{font-size:11px;color:var(--muted);padding:6px 10px;font-weight:600}
+  .rm-item{display:flex;justify-content:space-between;align-items:center;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:13px;gap:8px}
+  .rm-item:hover{background:var(--panel2)}
+  .rm-item .rm-lbl{font-weight:500;color:var(--txt)}
+  .rm-item .rm-sub{font-size:11px;color:var(--muted);margin-top:2px}
+  .rm-item .rm-val{font-size:11px;color:var(--muted);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rm-item .rm-copy{background:var(--panel2);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;color:var(--txt2)}
+  .rm-item .rm-copy:hover{border-color:var(--accent);color:var(--txt)}
+  .rm-item:hover{background:var(--panel2)}
+  .rm-sect{border-top:1px dashed var(--border);margin-top:4px;padding-top:4px}
+  .rm-qr{text-align:center;padding:8px 4px;border-top:1px dashed var(--border);margin-top:4px;position:relative}
+  .rm-qr .rm-title{text-align:left}
+  .rm-qr img{cursor:pointer}
+  .rm-qr .dl{position:absolute;top:22px;right:6px;background:var(--panel2);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;color:var(--txt2)}
+  .rm-qr .dl:hover{border-color:var(--accent);color:var(--txt)}
+  .preset{display:inline-block;border:1px solid var(--border);background:var(--panel2);border-radius:16px;padding:5px 11px;font-size:11.5px;cursor:pointer;color:var(--txt2)}
+  .preset:hover{border-color:var(--accent);color:var(--txt)}
+  /* ---- 详情 ---- */
+  .verdict-banner{border-radius:var(--r-card);padding:16px 20px;font-size:16px;font-weight:700;display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+  .vb-buy{background:linear-gradient(90deg,rgba(48,209,88,.16),rgba(48,209,88,.04));color:var(--green)}
+  .vb-watch{background:linear-gradient(90deg,rgba(255,214,10,.18),rgba(255,214,10,.04));color:var(--amber)}
+  .vb-sell{background:linear-gradient(90deg,rgba(255,69,58,.16),rgba(255,69,58,.04));color:var(--red)}
+  .vb-hold{background:linear-gradient(90deg,rgba(10,132,255,.16),rgba(10,132,255,.04));color:var(--blue)}
+  .verdict-banner .reason{font-size:12.5px;color:var(--txt2);font-weight:400;margin-top:6px;max-width:58%}
+  .vb-right{text-align:right;font-size:13px;flex:none}
+  .vb-right .px{font-size:24px;font-weight:700;color:var(--txt)}
+  #chart{width:100%;height:430px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .sig-box{background:var(--panel2);border-radius:10px;padding:12px;margin-bottom:10px}
+  .sig-box .k{font-size:12px;color:var(--muted);margin-bottom:4px}
+  .sig-box .v{font-size:14px;font-weight:600}
+  .sig-box .detail{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.5}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--border)}
+  th{color:var(--muted);font-weight:500;font-size:12px}
+  .flag-ok{color:var(--green)}.flag-bad{color:var(--red)}
+  .mlbl{font-size:12px;color:var(--muted);margin:10px 0 5px;font-weight:600}
+  .scroll{max-height:430px;overflow:auto}
+  .tooltip{font-size:12px}
+  .foot{color:var(--muted);font-size:11px;padding:4px 22px 20px;text-align:center}
+  /* ---- 按钮组(一排切换按钮) ---- */
+  .btnrow{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 10px}
+  .btnrow .lbl{width:100%;font-size:11px;color:var(--muted);margin-bottom:2px;font-weight:600}
+  .btn{padding:6px 12px;border:1px solid var(--border);background:var(--panel2);color:var(--txt2);border-radius:var(--r-btn);font-size:12.5px;cursor:pointer;transition:.15s;white-space:nowrap}
+  .btn:hover{border-color:var(--accent);color:var(--txt)}
+  .btn.active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 25%,transparent)}
+  .btn.green.active{background:var(--green)}
+  .btn.amber.active{background:var(--amber);color:#201300}
+  .btn.red.active{background:var(--red)}
+  .btn.small{padding:4px 9px;font-size:11.5px}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .src-sel select{background:var(--panel2);border:1px solid var(--border);border-radius:20px;padding:6px 12px;color:var(--txt2);font-size:12.5px;cursor:pointer}
+  /* ---- 名称搜索下拉 ---- */
+  .search-drop{position:absolute;top:34px;left:0;right:56px;z-index:50;background:var(--panel2);border:1px solid var(--accent);border-radius:10px;max-height:260px;overflow:auto;display:none}
+  .search-drop.show{display:block}
+  .sd-item{display:flex;justify-content:space-between;padding:8px 12px;cursor:pointer;font-size:13px}
+  .sd-item:hover,.sd-item.active{background:var(--hover)}
+  .sd-item .sd-name{color:var(--txt);font-weight:500}
+  .sd-item .sd-code{color:var(--muted);font-size:12px}
+  .sd-empty{padding:10px 12px;color:var(--muted);font-size:12px}
+  /* ---- 全市场行业浏览弹窗 ---- */
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:200}
+  .modal.show{display:flex}
+  .modal-box{background:var(--panel);border:1px solid var(--border);border-radius:14px;width:92%;max-width:820px;max-height:82vh;display:flex;flex-direction:column;overflow:hidden}
+  .modal-head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border);font-size:15px}
+  .ind-list{overflow:auto;padding:14px 18px}
+  .ind-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+  .ind-card{border:1px solid var(--border);border-radius:10px;padding:10px 12px;cursor:pointer;transition:.15s;background:var(--panel2)}
+  .ind-card:hover{border-color:var(--accent);background:var(--hover)}
+  .ind-card .in{font-weight:600;font-size:13px}
+  .ind-card .ic{font-size:11px;color:var(--muted);margin-top:3px}
+  .ind-back{margin-bottom:10px}
+  .ind-stock{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px}
+  .ind-stock:hover{background:var(--hover)}
+  .ind-stock .is-n{color:var(--txt)}
+  .ind-stock .is-c{color:var(--muted);font-size:11px}
+  .ind-stock .is-p{font-weight:600}
+  .ind-add{border:1px solid var(--accent);border-radius:16px;padding:3px 10px;font-size:11px;color:var(--accent);cursor:pointer}
+  /* ---- 顶部数据刷新条(可下拉展开) ---- */
+  .refreshbar{margin:12px 22px 0;background:var(--cardbg);border:1px solid var(--border);border-radius:var(--r-card);box-shadow:var(--shadow);overflow:hidden}
+  body[data-theme="b"] .refreshbar{backdrop-filter:blur(22px) saturate(170%);-webkit-backdrop-filter:blur(22px) saturate(170%)}
+  .rb-head{display:flex;align-items:center;gap:14px;padding:10px 18px;cursor:pointer;flex-wrap:wrap}
+  .rb-head .t{font-weight:600;font-size:13px;display:flex;align-items:center;gap:7px;color:var(--txt)}
+  .rb-head .t::before{content:"";width:3px;height:12px;border-radius:2px;background:var(--accent)}
+  .rb-head .arrow{margin-left:auto;transition:.2s;color:var(--muted)}
+  .refreshbar.open .rb-head .arrow{transform:rotate(180deg)}
+  .rb-body{max-height:0;overflow:hidden;transition:max-height .3s ease;border-top:1px solid transparent}
+  .refreshbar.open .rb-body{max-height:220px;border-top-color:var(--border)}
+  .rb-inner{padding:12px 18px;display:flex;gap:22px;align-items:center;flex-wrap:wrap}
+  .rb-inner .grp{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .rb-inner .gl{font-size:11px;color:var(--muted);white-space:nowrap}
+  .rb-inner input[type=time]{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:5px 8px;color:var(--txt2);font-size:12px}
+  .rb-note{font-size:11px;color:var(--muted)}
+</style>
+</head>
+<body data-theme="a">
+<header>
+  <div class="toprow">
+    <h1>📡 信号塔</h1>
+    <label class="themesel" title="切换界面风格">
+      <span class="tl">风格</span>
+      <select id="themeSel" onchange="setTheme(this.value)">
+        <option value="a">A · 深色原版</option>
+        <option value="b">B · 苹果玻璃</option>
+        <option value="c">C · 黑金</option>
+        <option value="d">D · 纸张浅色</option>
+      </select>
+    </label>
+    <div class="remote-wrap">
+      <span class="remote-btn" onclick="toggleRemoteMenu()" id="remoteBtn">
+        <span class="dot" id="remoteDot"></span>
+        <span id="remoteLabel">远程访问</span>
+        <span>▾</span>
+      </span>
+      <div class="remote-menu" id="remoteMenu">
+        <div class="rm-title">📡 远程访问 · 连接方式</div>
+        <div class="rm-item" onclick="openLocal()">
+          <div><div class="rm-lbl">本机</div><div class="rm-sub">localhost:8090</div></div>
+          <span class="rm-copy" onclick="event.stopPropagation();copyTxt('http://127.0.0.1:8090/')">复制</span>
+        </div>
+        <div class="rm-sect">
+          <div class="rm-title">🌐 公网（手机/任意设备）</div>
+          <div class="rm-item" onclick="openPublic()">
+            <div><div class="rm-lbl">公网地址（免装 app）</div><div class="rm-sub" id="pubSub">-- 未开启 --</div></div>
+            <span class="rm-copy" id="pubCopy" onclick="event.stopPropagation();copyTxt(document.getElementById('pubUrl').textContent)">复制</span>
+          </div>
+          <div class="rm-item">
+            <div><div class="rm-lbl">密码</div><div class="rm-sub">访问公网需输入密码</div></div>
+            <span class="rm-copy" onclick="event.stopPropagation();showPassword()">改密码</span>
+          </div>
+          <div class="rm-item">
+            <div><div class="rm-lbl">隧道状态</div><div class="rm-sub" id="tunnelState">--</div></div>
+            <button class="rm-copy" id="tunnelBtn" onclick="event.stopPropagation();toggleTunnel()">开启</button>
+          </div>
+        </div>
+        <div class="rm-qr" id="rmQr">
+          <div class="rm-title">📱 二维码（手机扫码访问 / 长按保存）</div>
+          <img id="qrImg" style="display:none;width:180px;height:180px;border-radius:8px;background:#fff;padding:6px" alt="二维码">
+          <span class="dl" onclick="saveQr()" id="qrSave" style="display:none">保存</span>
+          <div id="qrEmpty" style="color:var(--muted);font-size:12px;padding:8px 4px">-- 隧道开启后显示 --</div>
+        </div>
+        <div style="display:none" id="pubUrl"></div>
+      </div>
+    </div>
+  </div>
+  <div class="sub">A股自选股 · 买卖点 · 三态结论 · 市场环境 — 主力行为学11技能规则化引擎 · <span id="srcBadge">数据源: --</span></div>
+</header>
+
+<div class="refreshbar" id="refreshBar">
+  <div class="rb-head" onclick="document.getElementById('refreshBar').classList.toggle('open')">
+    <span class="t">📡 数据刷新</span>
+    <span class="btn" id="refreshBtn" onclick="event.stopPropagation();refreshData()" style="background:var(--green);color:#fff;border-color:var(--green)">🔄 立即更新行情</span>
+    <span id="refreshStatus" style="font-size:11px;color:var(--muted)">上次: --</span>
+    <span class="rb-note" style="color:var(--muted)">点击展开定时刷新设置</span>
+    <span class="arrow">▼</span>
+  </div>
+  <div class="rb-body">
+    <div class="rb-inner">
+      <div class="grp">
+        <span class="gl">⏰ 定时刷新</span>
+        <label class="sw"><input type="checkbox" id="schedEnable" onchange="saveSchedule()"><span class="sl"></span></label>
+      </div>
+      <div class="grp">
+        <span class="gl">每天</span>
+        <input type="time" id="schedTime" value="08:45">
+        <span class="btn small" onclick="saveSchedule()" style="background:var(--accent);color:#fff;border-color:var(--accent)">保存</span>
+      </div>
+      <span class="rb-note">到点自动从实时源更新行情（日/周/月）。</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <!-- 左栏 -->
+  <div class="left">
+    <div class="card">
+      <h2>🧠 大脑选择 <span class="hint">决定引擎如何下结论</span></h2>
+      <div class="btnrow" id="presetBtns"></div>
+      <div class="brain-toggle" onclick="document.getElementById('brainCard').classList.toggle('brain-open')">
+        <span>主力行为学技能开关 <span style="font-weight:400;font-size:11px;color:var(--muted)">点击展开</span></span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="brain-body">
+        <div id="brainList" style="max-height:520px;overflow:auto"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>🌍 市场环境</h2>
+      <div class="mkt" id="mkt"><div style="color:var(--muted)">加载中…</div></div>
+    </div>
+
+    <div class="card grow">
+      <h2>📊 自选股 <span class="hint" id="count"></span></h2>
+      <div class="btnrow" id="filterBtns"></div>
+      <div class="add-row" style="position:relative">
+        <input id="addCode" placeholder="代码或名称, 如 600519 / 立昂微" oninput="onSearchInput()" onkeydown="if(event.key==='Enter')pickFirst()">
+        <button onclick="addStock()">＋</button>
+        <div id="searchDrop" class="search-drop"></div>
+      </div>
+      <div class="grow-scroll" id="wlscroll">
+        <div class="stock-list" id="stocks"><div style="color:var(--muted);font-size:13px">加载中…</div></div>
+      </div>
+      <div id="wlmore" style="margin-top:8px"></div>
+    </div>
+  </div>
+
+  <!-- 右栏 -->
+  <div class="right">
+    <div id="detail">
+      <div class="card"><h2>📈 个股详情</h2><div style="color:var(--muted);font-size:13px;padding:50px 0;text-align:center">← 选择左侧一只股票查看详情</div></div>
+    </div>
+  </div>
+</div>
+<div class="foot">本平台由规则引擎按主力行为学自动生成，非荐股。请以实时盘面为准，买卖决策与结果自负。</div>
+
+<script>
+const ACTION={buy:"买入/低吸",watch:"观望",sell:"卖出/离场",hold:"持股待涨"};
+const VCLS={buy:"vb-buy",watch:"vb-watch",sell:"vb-sell",hold:"vb-hold"};
+const BCLS={buy:"b-buy",watch:"b-watch",sell:"b-sell",hold:"b-hold"};
+let STOCKS=[], CHART=null, BRAIN={};
+let _SEARCH_RESULTS=[];
+let _IND_STOCKS=[];
+let _IND_LIST=[];
+let PERIOD='day', MA5ON=true, MA10ON=true, MA20ON=true;
+let FILTER='all', PRESET='全开', SECTOR='all';
+let CURRENT=d=>d; // 当前kline数据的引用, 供period切换重绘
+let CURRENTDATA=null;
+
+async function api(path,opts){ const r=await fetch(path,opts); return r.json(); }
+
+/* HTML 转义（防 XSS）：所有远端/文件来源字符串进入 innerHTML 前必须经过 */
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+/* 数值格式化：非数字显示 '--'，防 .toFixed 崩 */
+function fmtPx(v){ v=Number(v); return isFinite(v)? v.toFixed(2) : '--'; }
+
+/* ---- 数据源显示 ---- */
+async function loadSource(){
+  try{
+    const d=await api("/api/source");
+    const cur=d.current&&d.current.type;
+    const names={eastmoney:"东方财富K线",tencent:"腾讯K线",file:"本地文件(data/custom)",http:"自定义HTTP API"};
+    document.getElementById("srcBadge").textContent = "数据源: "+(names[cur]||cur);
+  }catch(e){ document.getElementById("srcBadge").textContent="数据源: --"; }
+}
+
+/* ---- 大脑选择 ---- */
+async function loadBrain(){
+  const d=await api("/api/brain");
+  BRAIN=d.enabled;
+  renderBrain(d.catalog);
+}
+function renderBrain(cat){
+  const groups={};
+  cat.skills.forEach(s=>{(groups[s.group]=groups[s.group]||[]).push(s)});
+  const order=["A层·个股信号","B层·市场环境","行为层·提示"];
+  document.getElementById("brainList").innerHTML = order.map(g=>{
+    if(!groups[g])return"";
+    const rows=groups[g].map(s=>`
+      <div class="bg-row">
+        <div><span class="name">${s.name}</span><span class="desc">${s.desc}</span></div>
+        <label class="sw"><input type="checkbox" data-id="${s.id}" ${BRAIN[s.id]?'checked':''} onchange="toggleBrain('${s.id}')"><span class="sl"></span></label>
+      </div>`).join("");
+    return `<div class="bg-group">${g}</div>${rows}`;
+  }).join("");
+  renderPresets();
+}
+function renderPresets(){
+  const presets=[
+    ["全开","11技能全启用"],
+    ["只看个股","仅A层硬信号(4技能)"],
+    ["只看大盘","仅B层市场环境(4技能)"],
+    ["保守空仓","5天线+排除法"],
+    ["离场止损","只留5天线+排除法, 最保守"],
+  ];
+  document.getElementById("presetBtns").innerHTML=`<span class="lbl">策略预设</span>`+presets.map(p=>
+    `<span class="btn ${PRESET===p[0]?'active':''}" onclick="applyPreset('${p[0]}')" title="${p[1]}">${p[0]}</span>`).join("");
+}
+async function toggleBrain(id){
+  const input=document.querySelector(`input[data-id="${id}"]`);
+  BRAIN[id]=input.checked;
+  await api("/api/brain",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(BRAIN)});
+  loadStocks(); // 结论会随开关变化
+}
+function applyPreset(label){
+  PRESET=label;
+  if(label==="全开")BRAIN={ma5:1,dual_mode:1,spacetime:1,exclude:1,leader:1,rotation:1,whale:1,quarter:1,gain_loss:1,recency:1,see_long:1};
+  else if(label==="只看个股")BRAIN={ma5:1,dual_mode:1,spacetime:1,exclude:1,leader:0,rotation:0,whale:0,quarter:0,gain_loss:0,recency:0,see_long:0};
+  else if(label==="只看大盘")BRAIN={ma5:0,dual_mode:0,spacetime:0,exclude:0,leader:1,rotation:1,whale:1,quarter:1,gain_loss:0,recency:0,see_long:0};
+  else if(label==="保守空仓")BRAIN={ma5:1,dual_mode:0,spacetime:1,exclude:1,leader:0,rotation:0,whale:0,quarter:0,gain_loss:1,recency:1,see_long:0};
+  else if(label==="离场止损")BRAIN={ma5:1,dual_mode:0,spacetime:0,exclude:1,leader:0,rotation:0,whale:0,quarter:0,gain_loss:0,recency:1,see_long:0};
+  saveBrain();
+}
+async function saveBrain(){
+  await api("/api/brain",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(BRAIN)});
+  document.querySelectorAll("input[data-id]").forEach(i=>{i.checked=!!BRAIN[i.dataset.id]});
+  renderPresets();
+  loadStocks();
+}
+
+/* ---- 周期 / 均线切换 ---- */
+function setPeriod(p){ PERIOD=p; if(CURRENTDATA)selectStock(CURRENTDATA.code); }
+function toggleMA(n){
+  if(n==='5')MA5ON=!MA5ON; else if(n==='10')MA10ON=!MA10ON; else MA20ON=!MA20ON;
+  drawWanted(true);
+}
+function drawWanted(rebuild=false){
+  // 用当前缓存的数据重绘图表(切周期/均线时不重新请求)
+  if(CHART){ CHART.dispose(); CHART=null; }
+  const el=document.getElementById("chart"); if(!el) return;
+  if(!CURRENTDATA || !CURRENTDATA.kline || !CURRENTDATA.kline.length){ return; }
+  CHART=echarts.init(el);
+  const d=CURRENTDATA;
+  const dates=d.kline.map(k=>k.date);
+  const ohlc=d.kline.map(k=>[k.open,k.close,k.low,k.high]);
+  const vols=d.kline.map(k=>k.vol);
+  const series=[];
+  if(MA5ON)series.push({name:"MA5",type:"line",data:d.ma5,smooth:true,showSymbol:false,lineStyle:{width:1,color:"#f59e0b"}});
+  if(MA10ON)series.push({name:"MA10",type:"line",data:d.ma10,smooth:true,showSymbol:false,lineStyle:{width:1,color:"#3b82f6"}});
+  if(MA20ON)series.push({name:"MA20",type:"line",data:d.ma20,smooth:true,showSymbol:false,lineStyle:{width:1,color:"#e879f9"}});
+  const leg=series.map(s=>s.name).concat(["K线"]);
+  series.push({name:"K线",type:"candlestick",data:ohlc,itemStyle:{color:"#ef5350",color0:"#26a69a",borderColor:"#ef5350",borderColor0:"#26a69a"}});
+  CHART.setOption({
+    animation:false,backgroundColor:"transparent",
+    tooltip:{trigger:"axis",axisPointer:{type:"cross"},className:"tooltip"},
+    legend:{data:leg,textStyle:{color:"#c9d4e2"},top:0},
+    grid:[{left:52,right:16,top:28,height:310},{left:52,right:16,top:360,height:60}],
+    xAxis:[
+      {type:"category",data:dates,boundaryGap:true,axisLine:{lineStyle:{color:"#3a4557"}},axisLabel:{color:"#8b98aa"}},
+      {type:"category",gridIndex:1,data:dates,axisLabel:{show:false}}
+    ],
+    yAxis:[
+      {scale:true,splitLine:{lineStyle:{color:"#20283a"}},axisLabel:{color:"#8b98aa"}},
+      {gridIndex:1,splitNumber:2,axisLabel:{show:false},splitLine:{show:false}}
+    ],
+    dataZoom:[{type:"inside",xAxisIndex:[0,1],start:50,end:100}],
+    series:series.concat([{name:"成交量",type:"bar",xAxisIndex:1,yAxisIndex:1,
+      data:vols.map((v,i)=>d.kline[i].close>=d.kline[i].open?{value:v,itemStyle:{color:"#ef5350"}}:{value:v,itemStyle:{color:"#26a69a"}}),
+      barWidth:"60%"}])
+  });
+  window.addEventListener("resize",()=>CHART&&CHART.resize());
+}
+
+/* ---- 自选股筛选(结论 + 行业) ---- */
+function setFilter(f){ FILTER=f; renderStockList(); }
+function setSector(s){ SECTOR=s; renderStockList(); }
+function applyFilter(list){
+  let arr=list;
+  if(SECTOR!=='all')arr=arr.filter(s=>(s.sector||'')===SECTOR);
+  if(FILTER==='all')return arr;
+  if(FILTER==='buy')return arr.filter(s=>s.verdict.action==='buy');
+  if(FILTER==='watch')return arr.filter(s=>s.verdict.action==='watch');
+  if(FILTER==='sell')return arr.filter(s=>s.verdict.action==='sell');
+  if(FILTER==='hold')return arr.filter(s=>s.verdict.action==='hold');
+  return arr;
+}
+function renderFilterBtns(){
+  const f=[["all","全部"],["buy","🟢买入"],["watch","🟡观望"],["sell","🔴卖出"],["hold","🟦持股"]];
+  document.getElementById("filterBtns").innerHTML=`<span class="lbl">结论筛选</span>`+f.map(x=>
+    `<span class="btn small ${FILTER===x[0]?'active':''}" onclick="setFilter('${x[0]}')">${x[1]}</span>`).join("")
+    + renderIndustryBtns();
+}
+function renderIndustryBtns(){
+  const secs=[...new Set(STOCKS.map(s=>s.sector).filter(Boolean))];
+  let html=`<span class="lbl" style="margin-top:8px">行业筛选</span>`;
+  if(secs.length){
+    html+=secs.map(s=>
+      `<span class="btn small ${SECTOR===s?'active':''}" onclick="setSector('${s.replace(/'/g,"\\'")}')">${s}</span>`).join("");
+    if(SECTOR!=='all')html+=`<span class="btn small" onclick="setSector('all')">清除</span>`;
+  }
+  html+=`<span class="btn small" style="background:var(--accent);color:#fff;border-color:var(--accent)" onclick="openIndustry()">🌐 浏览全市场</span>`;
+  return html;
+}
+
+/* ---- 股票列表 ---- */
+async function loadStocks(){
+  try{
+    const d=await api("/api/stocks");
+    renderMarket(d.market);
+    STOCKS=d.stocks||[];
+    renderStockList();
+  }catch(e){
+    document.getElementById("stocks").innerHTML='<div style="color:var(--red)">读取失败: '+e+'</div>';
+  }
+}
+function renderStockList(){
+  document.getElementById("count").textContent=STOCKS.length+" 只";
+  const box=document.getElementById("stocks");
+  const more=document.getElementById("wlmore");
+  const list=applyFilter(STOCKS);
+  const FOLD_LIMIT=3;
+  if(!list.length){
+    box.innerHTML='<div style="color:var(--muted);font-size:13px">'+ (STOCKS.length? '该筛选下暂无股票':'暂无股票，用上方输入框添加') +'</div>';
+    if(more)more.innerHTML="";
+    return;
+  }
+  const folded = !WL_EXPANDED && list.length>FOLD_LIMIT;
+  const shown = folded ? list.slice(0,FOLD_LIMIT) : list;
+  box.innerHTML=shown.map((s,i)=>{
+    const v=s.verdict, cls=(s.last_pct??0)>=0?"up":"down";
+    const badge=BCLS[v.action]||"b-watch";
+    const errnote = s.status==="error" ? ` <span class="badge" style="background:#3a2b2b;color:#ff8a80">${esc(s.error)||'数据获取中'}</span>` : "";
+    const px = (s.last_close==null) ? '<span class="px">--</span>' :
+      `<span class="px">${s.last_close.toFixed(2)} <span class="${cls}">${(s.last_pct??0)>=0?'+':''}${(s.last_pct??0).toFixed(2)}%</span></span>`;
+    return `<div class="stock-item ${i===0?'active':''}" data-code="${s.code}" draggable="true"
+      ondragstart="dragStart(event,this)" ondragover="event.preventDefault()" ondrop="dropStock(event,this)" ondragend="dragEnd()"
+      onclick="selectStock('${s.code}')">
+      <button class="del" onclick="event.stopPropagation();delStock('${s.code}')" title="删除">✕</button>
+      <div class="r1"><span class="nm">${esc(s.name)} <span style="font-size:11px;color:var(--muted)">${s.code}</span></span>${px}</div>
+      <div class="r2"><span>${s.state}${errnote}</span><span class="badge ${badge}">${ACTION[v.action]||v.label}</span></div>
+    </div>`;
+  }).join("");
+  // 折叠/展开按钮
+  if(more){
+    if(list.length>FOLD_LIMIT){
+      const hidden=list.length-shown.length;
+      more.innerHTML=WL_EXPANDED
+        ? `<div class="wl-more" onclick="toggleWlExpand()">▲ 收起（显示 ${FOLD_LIMIT} 只）</div>`
+        : `<div class="wl-more" onclick="toggleWlExpand()">▼ 展开其余 ${hidden} 只（共 ${list.length}）</div>`;
+    } else { more.innerHTML=""; }
+  }
+  renderFilterBtns();
+  const first=shown[0];
+  if(first)selectStock(first.code);
+}
+let WL_EXPANDED=false;
+function toggleWlExpand(){ WL_EXPANDED=!WL_EXPANDED; renderStockList(); }
+/* ---- 拖拽排序 ---- */
+let _dragCode=null;
+function dragStart(ev,el){ _dragCode=el.dataset.code; el.classList.add("dragging"); }
+function dropStock(ev,target){
+  ev.preventDefault();
+  target.classList.remove("dragging");
+  if(!_dragCode || _dragCode===target.dataset.code)return;
+  const box=document.getElementById("stocks");
+  const dragEl=box.querySelector(`[data-code="${_dragCode}"]`);
+  if(dragEl && target!==dragEl){ box.insertBefore(dragEl,target); }
+  persistOrder();
+}
+function dragEnd(){ const d=document.querySelector(".dragging"); if(d)d.classList.remove("dragging"); _dragCode=null; }
+async function persistOrder(){
+  const box=document.getElementById("stocks");
+  const codes=[...box.querySelectorAll(".stock-item")].map(el=>el.dataset.code);
+  // 用完整 STOCKS 顺序(含被筛选隐藏的) — 这里基于其实际顺序
+  try{ await api("/api/watchlist/order",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({order:codes})}); }
+  catch(e){}
+}
+function renderMarket(m){
+  const el=document.getElementById("mkt");
+  if(!m){el.innerHTML='<div style="color:var(--muted)">数据不足</div>';return;}
+  const h=m.height||{},r=m.rotation||{},w=m.whale||{},q=m.quarter||{}; let html="";
+  const add=(t,note)=>{if(note)html+=`<div class="item"><span class="tag">${t}</span>${note}</div>`};
+  if(h.available)add("龙头定高度", h.leader_found?`龙头 <b>${h.leader}</b>：${h.note}`:`⚠️ 无真龙头，参考 ${h.leader}：${h.note}`);
+  if(r.available)add("板块轮动",`${r.wearing_pants}(涨完≈休) ⇄ ${r.waiting_pants}(轮到)：${r.note}`);
+  if(w.available)add("鲸落万物生",w.note);
+  if(q.available)add("后四分之一",q.note);
+  el.innerHTML=html||'<div style="color:var(--muted)">暂无市场信号</div>';
+}
+async function addStock(code, name){
+  let c=(code||document.getElementById("addCode").value).trim();
+  let n=(name||"").trim();
+  if(!/^\d{6}$/.test(c)){
+    // 输入的不是代码 → 尝试名称搜索并取第一个
+    const res=await api("/api/search?q="+encodeURIComponent(c));
+    if(res.results&&res.results.length){c=res.results[0].code;n=res.results[0].name||n;}
+    else{alert("未匹配到股票，请输入6位代码或名称");return;}
+  }
+  const btn=document.querySelector(".add-row button");
+  btn.disabled=true; btn.textContent="…";
+  hideDrop();
+  try{
+    const d=await api("/api/watchlist/add",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code:c,name:n})});
+    document.getElementById("addCode").value="";
+    if(d.ok) alert("已添加 "+n+"("+c+")：正在获取行情…"); else alert(d.msg||"添加失败:"+c);
+  }catch(e){ alert("网络错误:"+e); }
+  finally{ btn.disabled=false; btn.textContent="＋"; }
+  loadStocks();
+}
+
+/* ---- 名称/代码搜索 ---- */
+let _searchTimer=null;
+async function onSearchInput(){
+  const q=document.getElementById("addCode").value.trim();
+  hideDrop();
+  if(!q)return;
+  clearTimeout(_searchTimer);
+  _searchTimer=setTimeout(async ()=>{
+    const res=await api("/api/search?q="+encodeURIComponent(q));
+    const results=res.results||[];
+    _SEARCH_RESULTS=results;
+    const drop=document.getElementById("searchDrop");
+    if(!results.length){ drop.innerHTML='<div class="sd-empty">无匹配</div>'; drop.classList.add("show"); return; }
+    drop.innerHTML=results.map((r,i)=>`<div class="sd-item ${i===0?'active':''}" onclick="pickStock('${r.code}','${i}')"><span class="sd-name">${esc(r.name)}</span><span class="sd-code">${r.code}</span></div>`).join("");
+    drop.classList.add("show");
+  }, 250);
+}
+function pickStock(code,idx){ const r=_SEARCH_RESULTS[+idx]; const name=r?r.name:code; document.getElementById("addCode").value=name+" ("+code+")"; hideDrop(); addStock(code,name); }
+function pickFirst(){
+  const first=document.querySelector(".sd-item.active");
+  if(first){ first.click(); } else { addStock(); }
+}
+function hideDrop(){ document.getElementById("searchDrop").classList.remove("show"); }
+// 点击其他地方关闭下拉
+document.addEventListener("click",(e)=>{ if(!e.target.closest(".add-row")) hideDrop(); });
+
+async function delStock(code){
+  if(!confirm("删除 "+code+"?"))return;
+  try{ await api("/api/watchlist/del",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code})}); }
+  catch(e){ alert("删除失败:"+e); }
+  loadStocks();
+}
+async function refreshData(){
+  const btn=document.getElementById("refreshBtn");
+  const st=document.getElementById("refreshStatus");
+  if(btn){btn.disabled=true;btn.textContent="⏳ 更新中…";}
+  if(st)st.textContent="正在拉取最新行情…";
+  try{
+    const d=await api("/api/refresh",{method:"POST"});
+    if(st)st.textContent="上次: "+(d.info&&d.info.at ? d.info.at.slice(5,16) : "刚刚")+" · "+(d.info&&d.info.message||"");
+    renderMarket(d.market);
+    STOCKS=d.stocks||[];
+    renderStockList();
+  }catch(e){ if(st)st.textContent="刷新失败:"+e; }
+  finally{ if(btn){btn.disabled=false;btn.textContent="🔄 立即更新行情";} }
+}
+
+/* ---- 定时刷新 ---- */
+async function loadSchedule(){
+  try{
+    const d=await api("/api/schedule");
+    const s=d.schedule||{};
+    document.getElementById("schedEnable").checked=!!s.enabled;
+    if(s.time) document.getElementById("schedTime").value=s.time;
+  }catch(e){}
+}
+async function saveSchedule(){
+  const enabled=document.getElementById("schedEnable").checked;
+  const time=document.getElementById("schedTime").value||"08:45";
+  try{ await api("/api/schedule/set",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({enabled,time})}); }
+  catch(e){ alert("保存失败:"+e); }
+}
+
+/* ---- 详情 ---- */
+async function selectStock(code){
+  document.querySelectorAll(".stock-item").forEach(el=>el.classList.toggle("active",el.dataset.code===code));
+  const d=await api("/api/kline/"+code+"?period="+PERIOD);
+  renderDetail(d||{code,kline:[],signal:{}});
+}
+function renderDetail(d){
+  const s=d.signal||{}, v=s.verdict||{};
+  const vcls=VCLS[v.action]||"vb-watch", chg=s.last_pct??0, stop=s.stop||{};
+  const noData = !d.kline || d.kline.length===0;
+  const flags=(s.flags||[]).map(f=>`<div class="sig-box" style="padding:8px 12px"><span class="${f[0]==='无排除信号'?'flag-ok':'flag-bad'}">${f[0]}</span><span class="detail">${f[1]}</span></div>`).join("");
+  const chartBlock = noData
+    ? `<div class="card"><h2>📈 行情与技术（${esc(d.name)||d.code}）<span class="hint">${esc(d.sector)||''}</span></h2><div style="color:var(--amber);font-size:14px;padding:30px 0;text-align:center">⏳ 行情暂不可用（数据源限流）<br><span style="font-size:12px;color:var(--muted)">${esc(d.error)||'稍后自动重试'}</span></div></div>`
+    : `<div class="card"><h2>📈 行情与技术（${esc(d.name)||d.code}）<span class="hint">${esc(d.sector)||''}</span>
+        <div class="btnrow" style="margin:6px 0 8px">
+          <span class="btn small ${PERIOD==='day'?'active':''}" onclick="setPeriod('day')">日线</span>
+          <span class="btn small ${PERIOD==='week'?'active':''}" onclick="setPeriod('week')">周线</span>
+          <span class="btn small ${PERIOD==='month'?'active':''}" onclick="setPeriod('month')">月线</span>
+          <span class="btn small ${MA5ON?'active':''}" onclick="toggleMA('5')">MA5</span>
+          <span class="btn small ${MA10ON?'active':''}" onclick="toggleMA('10')">MA10</span>
+          <span class="btn small ${MA20ON?'active':''}" onclick="toggleMA('20')">MA20</span>
+        </div>
+      </h2><div id="chart"></div></div>`;
+  const pxDisp = (s.last_close==null) ? '<span style="color:var(--muted)">--</span>'
+    : `<div class="px">${s.last_close.toFixed(2)}</div><div style="color:${chg>=0?'var(--up)':'var(--down)'}">${chg>=0?'+':''}${chg.toFixed(2)}%</div>`;
+  document.getElementById("detail").innerHTML=`
+    <div class="verdict-banner ${vcls}">
+      <div style="font-size:19px">${ACTION[v.action]||v.label}
+        <div class="reason">${esc(v.reason)||''}</div>
+      </div>
+      <div class="vb-right">
+        <div>${esc(s.name)||esc(d.name)||''}</div>${pxDisp}
+        <div style="font-size:11px;color:var(--muted)">${s.last_date||''}${s.last_turnover!=null?' · 换手 '+s.last_turnover.toFixed(2)+'%':''}</div>
+      </div>
+    </div>
+    ${chartBlock}
+    <div class="grid2">
+      <div class="card">
+        <h2>🧭 当前状态</h2>
+        <div class="sig-box"><div class="k">主力行为学状态</div><div class="v">${s.state||'-'}</div><div class="detail">${s.state_reason||''}</div></div>
+        <div class="sig-box"><div class="k">买卖模式</div><div class="v">${s.mode||'-'}</div><div class="detail">${s.mode_reason||''}</div></div>
+        <div class="sig-box"><div class="k">时空共振</div><div class="v">${s.space_ok?'空间到位':'空间不足'} / ${s.time_ok?'时间充分':'时间不足'}</div><div class="detail">${s.space_detail||''}</div></div>
+        <div class="mlbl">行为学提示</div>
+        <div class="sig-box" style="font-size:12px;color:var(--muted);line-height:1.6">${s.recency_note||''}</div>
+      </div>
+      <div class="card">
+        <h2>🎯 买卖点 <span class="hint">3%止损铁律</span></h2>
+        <table>
+          <tr><th>项目</th><th>价位</th></tr>
+          <tr><td>现价</td><td>${stop['现价']??'-'}</td></tr>
+          <tr><td>参考入场(5日线)</td><td>${stop['参考入场(5日线)']??'-'}</td></tr>
+          <tr><td><b>止损价(-3%)</b></td><td><b style="color:var(--red)">${stop['止损价(-3%)']??'-'}</b></td></tr>
+          <tr><td>近20日支撑</td><td>${stop['近20日支撑']??'-'}</td></tr>
+          <tr><td>近20日压力</td><td>${stop['近20日压力']??'-'}</td></tr>
+        </table>
+        <div class="mlbl">排除法检查</div>${flags}
+      </div>
+    </div>`;
+  CURRENTDATA=d;
+  if(d.kline && d.kline.length) drawWanted(); else { if(CHART){CHART.dispose();CHART=null;} }
+}
+
+/* ---- 全市场行业浏览 ---- */
+async function openIndustry(){
+  document.getElementById("indModal").classList.add("show");
+  document.getElementById("indList").innerHTML='<div style="color:var(--muted);font-size:13px;padding:20px 0;text-align:center">加载行业…</div>';
+  loadIndustries();
+}
+function closeIndustry(){ document.getElementById("indModal").classList.remove("show"); }
+async function loadIndustries(){
+  try{
+    const d=await api("/api/industry");
+    const inds=d.industries||[];
+    _IND_LIST=inds;
+    if(!inds.length){ document.getElementById("indList").innerHTML='<div style="color:var(--muted);text-align:center;padding:20px">暂无行业数据</div>'; return; }
+    document.getElementById("indList").innerHTML=`<div style="color:var(--muted);font-size:12px;margin-bottom:10px">点击行业板块查看成分股（共 ${inds.length} 个行业）</div>`+
+      `<div class="ind-grid">`+inds.map(i=>`<div class="ind-card" onclick="showIndustryStocks('${esc(i.code)}','${esc(i.name)}')"><div class="in">${esc(i.name)}</div><div class="ic">${i.count} 只</div></div>`).join("")+`</div>`;
+  }catch(e){ document.getElementById("indList").innerHTML='<div style="color:var(--red);text-align:center;padding:20px">加载失败:'+esc(e)+'</div>'; }
+}
+async function showIndustryStocks(code,name){
+  code=(code||"").trim(); name=esc(name)||code;
+  if(!code){ document.getElementById("indList").innerHTML='<div style="color:var(--red);text-align:center;padding:20px">板块代码缺失(可能版本缓存过期, 请强制刷新)</div>'; loadIndustries(); return; }
+  document.getElementById("indList").innerHTML=`<div class="ind-back"><span class="btn small" onclick="loadIndustries()">← 返回行业列表</span><span class="btn small" style="margin-left:6px;background:var(--accent);color:#fff;border-color:var(--accent)">${name}</span></div><div style="color:var(--muted);font-size:12px;margin-bottom:8px">点击股票可加入自选股</div><div style="color:var(--muted);padding:16px;text-align:center">加载…</div>`;
+  try{
+    const d=await api("/api/industry/"+code);
+    const st=d.stocks||[];
+    const have=new Set(STOCKS.map(s=>s.code));
+    _IND_STOCKS=st;
+    document.getElementById("indList").innerHTML=`<div class="ind-back"><span class="btn small" onclick="loadIndustries()">← 返回行业列表</span><span class="btn small" style="margin-left:6px;background:var(--accent);color:#fff;border-color:var(--accent)">${name}</span><span class="btn small" style="margin-left:6px">${st.length} 只</span></div>`+
+      st.map(s=>`<div class="ind-stock" onclick="showStockAnalyze('${esc(s.code)}','${esc(s.name)}')">
+        <span class="is-n">${esc(s.name)} <span class="is-c">${s.code}</span></span>
+        <span>${fmtPx(s.price)} <span style="color:${(+s.pct||0)>=0?'var(--up)':'var(--down)'}">${(+s.pct||0)>=0?'+':''}${fmtPx(s.pct)}%</span>
+        ${have.has(s.code)?'<span style="color:var(--muted);font-size:11px;margin-left:4px">已自选</span>':`<span class="ind-add" onclick="event.stopPropagation();addStock('${s.code}')">＋自选</span>`}</span>
+      </div>`).join("")+`<div id="indAnalyze"></div>`;
+  }catch(e){ document.getElementById("indList").innerHTML='<div style="color:var(--red);padding:16px;text-align:center">加载失败:'+e+'</div>'; }
+}
+async function showStockAnalyze(code,name){
+  const box=document.getElementById("indAnalyze");
+  if(!box||!code)return;
+  name=esc(name)||code;
+  box.innerHTML=`<div class="sig-box" style="margin-top:12px"><div class="k">${name}（${code}）主力行为学分析</div><div style="color:var(--muted)">加载中…</div></div>`;
+  try{
+    const d=await api("/api/analyze/"+code);
+    if(d.error){ box.innerHTML=`<div class="sig-box" style="margin-top:12px"><div class="k">${name}（${code}）</div><div style="color:var(--amber)">${esc(d.error)}</div></div>`; return; }
+    const sig=d.signal||{}, v=sig.verdict||{}, stop=sig.stop||{};
+    box.innerHTML=`<div class="sig-box" style="margin-top:12px">
+      <div class="k">${name}（${code}）主力行为学 ${esc(sig.state)||''}</div>
+      <div class="v" style="color:${v.action==='buy'?'var(--green)':v.action==='sell'?'var(--red)':v.action==='hold'?'var(--blue)':'var(--amber)'}">${ACTION[v.action]||v.label}</div>
+      <div class="detail">${esc(v.reason)}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:6px">入场 ${stop['参考入场(5日线)']??'-'} · 止损 <b style="color:var(--red)">${stop['止损价(-3%)']??'-'}</b> · 现价 ${sig.last_close??'-'}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">${esc(sig.space_detail)||''}</div>
+    </div>`;
+  }catch(e){ box.innerHTML=`<div class="sig-box" style="margin-top:12px"><div class="detail" style="color:var(--red)">分析失败:${esc(e)}</div></div>`; }
+}
+
+/* ---- 界面主题（4 风格切换, 持久化到后端） ---- */
+async function setTheme(t){
+  document.body.setAttribute("data-theme", t);
+  document.getElementById("themeSel").value = t;
+  try{ await api("/api/theme",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({theme:t})}); }
+  catch(e){}
+}
+async function loadTheme(){
+  try{
+    const d = await api("/api/theme");
+    const t = (d&&d.theme) || "a";
+    document.body.setAttribute("data-theme", t);
+    const sel = document.getElementById("themeSel");
+    if(sel) sel.value = t;
+  }catch(e){ document.body.setAttribute("data-theme","a"); }
+}
+
+/* ---- 远程访问（顶部最右下拉菜单）---- */
+let _remoteShown=false;
+function toggleRemoteMenu(){
+  _remoteShown=!_remoteShown;
+  document.getElementById("remoteMenu").classList.toggle("show",_remoteShown);
+  if(_remoteShown) loadRemote();
+}
+document.addEventListener("click",(e)=>{ if(!e.target.closest(".remote-wrap")){ _remoteShown=false; document.getElementById("remoteMenu").classList.remove("show"); } });
+async function loadRemote(){
+  try{
+    const d=await api("/api/remote");
+    const ready=d.tunnel_phase==="ready";
+    const url=d.public_url||"";
+    const on = ready && url;   // 以 tunnel_phase 为准，避免隧道关了还显示"公网已开"
+    document.getElementById("remoteDot").classList.toggle("on", !!on);
+    document.getElementById("remoteLabel").textContent = on ? "公网已开" : "本机";
+    document.getElementById("pubSub").textContent = url ? url.replace("https://","") : "-- 未开启 --";
+    document.getElementById("pubUrl").textContent = url;
+    document.getElementById("tunnelState").textContent = ready ? "已开启(需密码)" : "未开启";
+    document.getElementById("tunnelBtn").textContent = ready ? "关闭" : "开启";
+    loadQr(url);
+  }catch(e){}
+}
+function loadQr(url){
+  const img=document.getElementById("qrImg"), empty=document.getElementById("qrEmpty");
+  const save=document.getElementById("qrSave");
+  if(!url){ img.style.display="none"; save.style.display="none"; empty.style.display=""; empty.textContent="-- 隧道开启后显示 --"; return; }
+  img.src="/api/remote/qr?_="+Date.now();
+  img.style.display="inline-block"; save.style.display=""; empty.style.display="none";
+}
+function saveQr(){
+  const img=document.getElementById("qrImg");
+  if(!img.src){ alert("二维码未生成"); return; }
+  const a=document.createElement("a");
+  a.href=img.src; a.download="远程访问二维码.png"; a.click();
+}
+function openLocal(){ window.open("http://127.0.0.1:8090/","_blank"); }
+function openPublic(){
+  const url=document.getElementById("pubUrl").textContent;
+  if(url) window.open(url,"_blank"); else alert("公网隧道未开启，先点'开启'");
+}
+function copyTxt(t){ 
+  try{ navigator.clipboard.writeText(t); alert("已复制: "+t); }catch(e){ prompt("复制:",t); }
+}
+async function toggleTunnel(){
+  const btn=document.getElementById("tunnelBtn");
+  const isOpen=document.getElementById("tunnelState").textContent.indexOf("已开启")>=0;
+  btn.textContent="…";
+  try{
+    const r=await api("/api/remote/tunnel",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:isOpen?"stop":"start"})});
+    if(r.ok){ alert(r.url?("公网已开: "+r.url):"隧道已关"); } else { alert(r.msg||"操作失败"); }
+  }catch(e){ alert("网络错误:"+e); }
+  btn.textContent="…"; loadRemote();
+}
+async function showPassword(){
+  const pw=prompt("设置远程访问密码(至少4位, 公网入口用):");
+  if(!pw) return;
+  try{ await api("/api/remote/password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pw})}); alert("密码已更新"); }
+  catch(e){ alert("失败:"+e); }
+}
+
+loadBrain();
+loadSource();
+loadSchedule();
+loadTheme();
+loadStocks();
+loadRemote();
+</script>
+
+<!-- 全市场行业浏览弹窗 -->
+<div class="modal" id="indModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <b>🌐 全市场行业浏览</b>
+      <button class="btn small" onclick="closeIndustry()">✕ 关闭</button>
+    </div>
+    <div id="indList" class="ind-list">
+      <div style="color:var(--muted);font-size:13px;padding:20px 0;text-align:center">加载行业…</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
