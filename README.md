@@ -17,16 +17,16 @@
 
 **要求**：装了 Python 3.10+（`python --version` 能出数字即可）。别的都不用装。
 
+**一键（推荐）**：
 ```powershell
 # 1. 下载本项目并解压（或 git clone）
-# 2. 双击 start_web.cmd，或手动：
-python web_server.py 8090
-
-# 3. 浏览器打开
-http://127.0.0.1:8090/
+# 2. 双击 install.bat   → 自动检查 Python、装可选依赖、启动服务并打开浏览器
+# 3. 或用任一命令入口：
+start_web.cmd                      # 双击启动网页版
+python web_server.py 8090          # 或手动命令
 ```
-
-第一次打开，点左上 **"🔄 立即更新行情"**，几秒后自选股就有数据和结论了。
+浏览器打开 `http://127.0.0.1:8090/` 即可。
+首次打开，点左上 **"🔄 立即更新行情"**，几秒后自选股就有数据和结论了。
 
 > 完全本机运行：平台只绑 `127.0.0.1`，你的自选股/数据都留在自己电脑。
 
@@ -76,10 +76,11 @@ http://127.0.0.1:8090/
 XinHaoTa/
 ├── watchlist.md        ← 自选股示例（网页可增删）
 ├── datasource.json     ← 数据源配置（sina/tencent/eastmoney/file/http）
+├── install.bat         ← ★ 一键安装并启动（检查Python+装依赖+开浏览器）
 ├── web_server.py       ← 网页服务（入口）
 ├── remote_proxy.py     ← 密码代理（远程访问用）
 ├── run.py              ← 命令行批量生成 Markdown 报告
-├── start_web.cmd       ← Windows 一键启动网页版
+├── start_web.cmd       ← 一键启动网页版
 ├── start_remote.cmd    ← 一键启动 网页+远程
 ├── bin/                ← 放你自己的 cloudflared.exe（可选）
 ├── src/                ← 引擎源码（主力行为学规则）
