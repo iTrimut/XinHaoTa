@@ -252,43 +252,48 @@ _tunnel = Tunnel()
 
 
 def _find_tunnel_process(port):
-    """查找指向指定端口的 cloudflared 进程，返回 (存在, 可能已保存的url)。"""
+    """查找指向指定端口的 cloudflared 进程，返回 (存在, 可能已保存的url)。
+    用 tasklist(CSV) 而非 wmic(wmic 已被微软弃用, Win11 24H2 起可能移除)。"""
+    import subprocess as sp
+    pids = _list_cloudflared_pids()
+    if not pids:
+        return None, None
+    # 用命令行匹配: PowerShell/WMIC 弃用后最稳的纯标准库途径是 tasklist /v 拿不到完整命令行，
+    # 因此用"进程存在 + state 里记录了我们起的隧道"作为判据；url 一律以 state 为准。
+    st = _load_state()
+    return pids[0], st.get("url")
+
+
+def _list_cloudflared_pids():
+    """列出所有 cloudflared 进程 PID(tasklist CSV 解析, 纯标准库)。"""
     import subprocess as sp
     try:
-        out = sp.check_output(["wmic", "process", "where", "name='cloudflared.exe'", "get", "CommandLine,ProcessId"],
-                              text=True, timeout=8)
+        out = sp.check_output(["tasklist", "/fo", "csv", "/fi", "IMAGENAME eq cloudflared.exe"],
+                              text=True, timeout=8, errors="replace")
     except Exception:
-        return None, None
-    for line in out.splitlines():
-        if f":{port}" in line and "tunnel" in line:
-            try:
-                pid = line.strip().split()[-1]
-            except Exception:
-                pid = None
-            st = _load_state()
-            return pid, st.get("url")
-    return None, None
+        return []
+    pids = []
+    for line in out.splitlines()[1:]:          # 第一行是表头
+        # CSV: "image","pid","session","sess#","mem"
+        if '"cloudflared' in line:
+            parts = line.split('","')
+            if len(parts) >= 2:
+                pid = parts[1].strip('"')
+                if pid.isdigit():
+                    pids.append(pid)
+    return pids
 
 
 def _kill_tunnel_processes(port):
-    """杀掉指向指定端口的 cloudflared 进程。返回杀掉的进程数。"""
+    """杀掉 cloudflared 进程(用 tasklist 找 PID + taskkill)。返回杀掉的进程数。"""
     import subprocess as sp
     n = 0
-    try:
-        out = sp.check_output(["wmic", "process", "where", "name='cloudflared.exe'", "get", "CommandLine,ProcessId"],
-                              text=True, timeout=8)
-    except Exception:
-        return n
-    for line in out.splitlines():
-        if f":{port}" in line and "tunnel" in line:
-            parts = line.strip().split()
-            if parts:
-                pid = parts[-1]
-                try:
-                    sp.run(["taskkill", "/PID", pid, "/F"], capture_output=True, timeout=8)
-                    n += 1
-                except Exception:
-                    pass
+    for pid in _list_cloudflared_pids():
+        try:
+            sp.run(["taskkill", "/PID", pid, "/F"], capture_output=True, timeout=8)
+            n += 1
+        except Exception:
+            pass
     return n
 
 
