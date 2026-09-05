@@ -1,0 +1,35 @@
+# PR-Agent (Qodo Merge 开源版) — 每条 PR 自动 AI 审查
+# 官方文档: https://docs.pr-agent.ai/installation/github/
+# 模型: DeepSeek 官方 API（对应官方 .secrets_template.toml 的 [deepseek] key）
+name: PR Agent (DeepSeek)
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, synchronize]
+  issue_comment:
+
+jobs:
+  pr_agent_job:
+    if: ${{ github.event.sender.type != 'Bot' }}
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+      contents: write
+    name: Run PR Agent on every pull request, respond to user comments
+    steps:
+      - name: PR Agent action step
+        id: pragent
+        uses: the-pr-agent/pr-agent@main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # DeepSeek API key（在 Settings > Secrets and variables > Actions 添加）
+          DEEPSEEK.KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          config.model: "deepseek/deepseek-chat"
+          config.fallback_models: '["deepseek/deepseek-chat"]'
+          # 开 PR / 更新时自动审查；需要标题总结或逐行建议时可在 PR 评论里发 /describe、/improve
+          github_action_config.auto_review: "true"
+          github_action_config.auto_describe: "false"
+          github_action_config.auto_improve: "false"
+          # 审查意见输出语言（可改 en-US）
+          config.response_language: "zh-CN"
