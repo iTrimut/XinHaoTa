@@ -235,8 +235,8 @@
       <div class="remote-menu" id="remoteMenu">
         <div class="rm-title">📡 远程访问 · 连接方式</div>
         <div class="rm-item" onclick="openLocal()">
-          <div><div class="rm-lbl">本机</div><div class="rm-sub">localhost:8090</div></div>
-          <span class="rm-copy" onclick="event.stopPropagation();copyTxt('http://127.0.0.1:8090/')">复制</span>
+          <div><div class="rm-lbl">本机</div><div class="rm-sub" id="localSub">localhost</div></div>
+          <span class="rm-copy" onclick="event.stopPropagation();copyTxt(location.origin+'/')">复制</span>
         </div>
         <div class="rm-sect">
           <div class="rm-title">🌐 公网（手机/任意设备）</div>
@@ -801,6 +801,8 @@ function toggleRemoteMenu(){
 }
 document.addEventListener("click",(e)=>{ if(!e.target.closest(".remote-wrap")){ _remoteShown=false; document.getElementById("remoteMenu").classList.remove("show"); } });
 async function loadRemote(){
+  const ls=document.getElementById("localSub");
+  if(ls) ls.textContent=location.host;   // 显示当前实际 主机:端口
   try{
     const d=await api("/api/remote");
     const ready=d.tunnel_phase==="ready";
@@ -828,7 +830,7 @@ function saveQr(){
   const a=document.createElement("a");
   a.href=img.src; a.download="远程访问二维码.png"; a.click();
 }
-function openLocal(){ window.open("http://127.0.0.1:8090/","_blank"); }
+function openLocal(){ window.open(location.origin+"/","_blank"); }
 function openPublic(){
   const url=document.getElementById("pubUrl").textContent;
   if(url) window.open(url,"_blank"); else alert("公网隧道未开启，先点'开启'");
