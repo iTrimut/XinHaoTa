@@ -317,7 +317,8 @@ def status():
         "auth": True,
         "public_url": url,
         "tunnel_phase": phase,
-        "cloudflared": _find_cloudflared(),
+        # 只回传"是否找到 cloudflared"，不回本地路径（避免向任何访问者泄露本机路径）
+        "cloudflared_found": _find_cloudflared() is not None,
     }
 
 
