@@ -6,6 +6,22 @@
 
 ![theme](https://img.shields.io/badge/UI-4%20themes-0a84ff) ![data](https://img.shields.io/badge/data-新浪K线-30d158) ![license](https://img.shields.io/badge/license-MIT-green)
 
+## 界面预览（真实运行截图）
+
+> 本机自选 A 股 + 免费行情源，打开网页即用。以下均为实际运行画面。
+
+| 深色原版（默认） | 纸张浅色 | 苹果玻璃 |
+|---|---|---|
+| ![深色主界面](docs/screenshots/ui-main-dark.png) | ![纸张浅色主题](docs/screenshots/ui-theme-light.png) | ![苹果玻璃主题](docs/screenshots/ui-theme-glass.png) |
+
+**看什么**：左侧自选股一目了然的 买/观望/卖/持股 信号 + 市场环境；右侧选中个股的日/周/月 K 线与 MA5/10/20、参考买卖点；每只票点进去都有结论理由。左上角"风格"下拉可一键切换 4 套主题。
+
+**更多**：🌐「浏览全市场」打开 49 个行业 → 成分股 → 直达个股买卖点（见下）；还有 主力行为学 11 个技能开关、定时刷新、远程访问。
+
+![全市场行业浏览弹窗](docs/screenshots/ui-industry.png)
+
+> 数据为示例自选股（茅台/宁德/立昂微等）的真实行情渲染；行情源可换（详见下文）。
+
 ## 它解决什么
 
 - **不猜**：5天线在线上→持股，跌破→走。规则写成引擎，不靠盘感拍脑袋。

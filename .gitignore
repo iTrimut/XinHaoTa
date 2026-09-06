@@ -24,3 +24,7 @@ web/*.png
 web/dom*.txt
 web/console.log
 web/*.err
+
+# ===== 有意入库的 README 界面截图（例外）=====
+!docs/screenshots/
+!docs/screenshots/*.png
