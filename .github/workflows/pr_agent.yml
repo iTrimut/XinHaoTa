@@ -31,5 +31,7 @@ jobs:
           github_action_config.auto_review: "true"
           github_action_config.auto_describe: "false"
           github_action_config.auto_improve: "false"
+          # 明确触发集合：含 synchronize —— push 新提交(按意见修改后)自动重新审查
+          github_action_config.pr_actions: '["opened", "reopened", "ready_for_review", "synchronize"]'
           # 审查意见输出语言（可改 en-US）
           config.response_language: "zh-CN"
