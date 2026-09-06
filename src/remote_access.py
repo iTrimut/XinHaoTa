@@ -281,14 +281,16 @@ def _is_cloudflared_running(pid):
 
 
 def _find_owned_cloudflared_pid(port):
-    """用 PowerShell 查 cloudflared 进程命令行，返回指向 http://127.0.0.1:<port> 的 PID(若有)。
-    纯 tasklist 拿不到命令行；PowerShell 是 Windows 自带。绝不匹配其他端口(如 DSH 的隧道)。"""
+    """用 PowerShell 查 cloudflared 进程命令行，返回指向 <port> 的 PID(若有)。
+    纯 tasklist 拿不到命令行；PowerShell 是 Windows 自带。
+    匹配 `--url ...<port>`（兼容 localhost/127.0.0.1/带不带 scheme 等写法）；
+    端口是唯一判据——绝不匹配其他端口(如 DSH 的隧道)。"""
     import subprocess as sp
     try:
         out = sp.check_output(
             ["powershell", "-NoProfile", "-Command",
              f"Get-CimInstance Win32_Process -Filter \"Name='cloudflared.exe'\" | "
-             f"Where-Object {{ $_.CommandLine -like '*--url http://127.0.0.1:{port}*' }} | "
+             f"Where-Object {{ $_.CommandLine -match '--url .*:{port}(/|\\s|$)' }} | "
              f"Select-Object -ExpandProperty ProcessId"],
             text=True, timeout=10, errors="replace")
     except Exception:
