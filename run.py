@@ -23,31 +23,18 @@ import data_fetch
 import signal_engine
 import md_render
 import context_engine
-
-WATCHLIST_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "watchlist.md")
-
-
-def parse_watchlist(path: str = WATCHLIST_FILE):
-    """从 markdown 表格解析自选股 [(code, name, sector), ...]"""
-    stocks = []
-    if not os.path.exists(path):
-        return stocks
-    for line in open(path, encoding="utf-8"):
-        line = line.strip()
-        if not line.startswith("|"):
-            continue
-        cells = [c.strip() for c in line.strip("|").split("|")]
-        if len(cells) < 2 or not re.fullmatch(r"\d{6}", cells[0]):
-            continue
-        code = cells[0]
-        name = cells[1] if len(cells) > 1 and cells[1] and cells[1] != "名称" else ""
-        sector = cells[2] if len(cells) > 2 and cells[2] else ""
-        stocks.append((code, name, sector))
-    return stocks
+import store  # 自选股真相源：config.json(运行时) 优先，config 空时回退 watchlist.md 示例清单
 
 
 def _strip_dir(path):
     return path.replace("\\", "/").split("/")[-1]
+
+
+def _watch_tasks():
+    """自选任务 [(code,name,sector),...]：读 store（config.json），与网页共用同一真相源。
+    config 无自选时 store 自动回退 watchlist.md（仓库示例初始清单）。"""
+    return [(s["code"], s.get("name", ""), s.get("sector", ""))
+            for s in store.get_watchlist()]
 
 
 def main():
@@ -57,7 +44,7 @@ def main():
     # 收集要分析的代码
     if args:
         codes = [a for a in args if re.fullmatch(r"\d{6}", a)]
-        watch = {c: (n, s) for c, n, s in parse_watchlist()}
+        watch = {c: (n, s) for c, n, s in _watch_tasks()}
         tasks = []
         for c in codes:
             n, s = watch.get(c, ("", ""))
@@ -65,13 +52,13 @@ def main():
     else:
         tasks = []
         seen = set()
-        for c, n, s in parse_watchlist():
+        for c, n, s in _watch_tasks():
             if c in seen:
                 continue
             seen.add(c)
             tasks.append((c, n, s))
         if not tasks:
-            print("watchlist.md 为空或格式不对，无法分析。")
+            print("自选为空（config.json 与 watchlist.md 示例均为空），无法分析。")
             return
 
     print(f"今日 {dt.date.today().isoformat()}，待分析 {len(tasks)} 只。")

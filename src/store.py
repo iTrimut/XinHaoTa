@@ -2,6 +2,11 @@
 """
 store.py — 轻量配置持久化
 用 JSON 保存 watchlist(自选股) 和 brain(技能开关)。供 web 版"增删股票 / 大脑选择"使用。
+
+文件职责：
+  - config.json  运行时真实配置(自选/大脑/主题/调度)，含用户真实持仓 → 已 gitignore，网页增删只写这里
+  - watchlist.md 仓库内"示例初始清单"：仅当 config.json 无 watchlist 时作为首次启动的默认自选读取；
+                 网页增删**不回写**该文件（避免真实自选进 git/公开仓库）
 """
 from __future__ import annotations
 import os, json
@@ -128,8 +133,8 @@ def add_stock(code, name="", sector=""):
     wl.append({"code": code, "name": name, "sector": sector})
     cfg["watchlist"] = wl
     save(cfg)
-    # 同步回写 watchlist.md，保持与 markdown 配置一致
-    _write_md(wl)
+    # 只写 config.json（已 gitignore，含用户真实自选）。
+    # 不写回 watchlist.md —— 该文件是仓库内的"示例初始清单"，回写会把真实自选带进 git。
     return wl, "已添加"
 
 
@@ -141,7 +146,6 @@ def remove_stock(code):
         return wl, "不存在"
     cfg["watchlist"] = new
     save(cfg)
-    _write_md(new)
     return new, "已删除"
 
 
@@ -158,22 +162,4 @@ def reorder_stock(ordered_codes):
     new.extend(by_code.values())
     cfg["watchlist"] = new
     save(cfg)
-    _write_md(new)
     return new
-
-
-def _write_md(wl):
-    """把自选股写回 watchlist.md（Markdown 表格），保持与内存一致。"""
-    path = os.path.join(BASE, "watchlist.md")
-    lines = [
-        "# 自选股清单（watchlist）",
-        "",
-        "> 主力行为学平台的自选股配置。可在此表格或网页界面上维护。运行 `run.py` / `web_server.py` 后逐票分析。",
-        "",
-        "| 代码 | 名称 | 板块 | 备注 |",
-        "|------|------|------|------|",
-    ]
-    for s in wl:
-        lines.append(f"| {s['code']} | {s['name']} | {s['sector']} | 网页维护 |")
-    lines.append("")
-    open(path, "w", encoding="utf-8").write("\n".join(lines))

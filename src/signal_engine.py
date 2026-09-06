@@ -56,10 +56,17 @@ def state_machine(rows):
         # 线下 + 5日线下行 → ③ 线下持币/狩猎
         return "③线下持币", f"收盘{c:.2f}跌破MA5({ma5:.2f})与MA20({ma20:.2f})，5日线下行，线下持币"
     # 关键区分: 回踩5日线不破(盘中触及未破/收盘守住) → ①; 破位超跌 → ②
-    # 需要前面曾有一波多头(趋势向上), 当前回踩到 ma5 附近
-    prev_up = any(closes[max(0, i-15):i][k] > ma(closes, 20, i) for k in range(len(closes[max(0, i-15):i])))
+    # ①需"前面曾有一波多头(近15日内曾收盘站上当日MA20)" + 当前回踩到 ma5 附近
+    # 用滚动 MA20 判定：收盘价 vs 该日自己的 MA20，避免"用今日MA20比历史价"把阴跌也误判成多头
+    had_uptrend = False
+    start = max(20, i - 15)
+    for j in range(start, i):
+        ma20_j = ma(closes, 20, j)
+        if ma20_j is not None and closes[j] > ma20_j:
+            had_uptrend = True
+            break
     near_ma5 = abs(c - ma5) / ma5 < 0.03  # 距5日线3%以内
-    if near_ma5 and ma20_up:
+    if near_ma5 and ma20_up and had_uptrend:
         return "①倒车接人(候选)", f"收盘{c:.2f}回踩MA5({ma5:.2f})附近，需开盘半小时确认守住"
     if c < ma5 and (ma20 is not None and ma20_up):
         return "③线下持币", f"跌破MA5({ma5:.2f})但中期(MA20 {ma20:.2f})仍向上，等待收复或确认破位"

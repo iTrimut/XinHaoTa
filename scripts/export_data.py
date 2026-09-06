@@ -122,6 +122,6 @@ if __name__ == "__main__":
     else:
         codes = [s["code"] for s in store.get_watchlist()]
     if not codes:
-        print("无自选股代码(检查 watchlist.md 或传参数)。")
+        print("无自选股代码(config.json 为空，请用网页添加或传代码参数)。")
         sys.exit(1)
     export(codes, periods=periods, force=force, dry=dry)

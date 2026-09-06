@@ -61,8 +61,11 @@ def set_password(pw):
 
 # ---------- 隧道状态持久化 ----------
 def _save_state(d):
+    """合并写入 state(保留既有字段，如 pid/url 互不覆盖)。"""
     os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
-    json.dump(d, open(STATE_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    st = _load_state()
+    st.update(d)
+    json.dump(st, open(STATE_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
 
 def _load_state():
@@ -193,12 +196,12 @@ class Tunnel:
         self.phase = "off"
 
     def start(self, port, timeout=45):
-        # 若已有匹配的 cloudflared 进程在跑 → 视为已开启（复用 state 里存的 url）
+        # 若已有自己启动的 cloudflared 进程在跑（state 记录的 pid 存活）→ 视为已开启（复用 url）
         ex, exurl = _find_tunnel_process(port)
         if ex and exurl:
             self.phase = "ready"
             self.url = exurl
-            _save_state({"url": exurl, "started_at": dt.datetime.now().isoformat()})
+            _save_state({"url": exurl, "started_at": dt.datetime.now().isoformat(), "pid": ex})
             return {"ok": True, "url": exurl, "msg": "隧道已在运行"}
         self.phase = "starting"
         bin_ = _find_cloudflared()
@@ -229,9 +232,11 @@ class Tunnel:
         if url:
             self.phase = "ready"
             self.url = url
-            _save_state({"url": url, "started_at": dt.datetime.now().isoformat()})
+            # 记录自启进程 pid，stop 只精确杀自己起的隧道，避免误杀其他程序(如 DSH 远程访问)的 cloudflared
+            _save_state({"url": url, "started_at": dt.datetime.now().isoformat(),
+                         "pid": self.proc.pid})
             return {"ok": True, "url": url}
-        # 超时；若进程实际在跑且 state 有 url，则复用
+        # 超时；若自己启动的进程实际在跑且 state 有 url，则复用
         _, furl = _find_tunnel_process(port)
         if furl:
             self.phase = "ready"; self.url = furl
@@ -240,8 +245,8 @@ class Tunnel:
         return {"ok": False, "msg": "tunnel 启动超时: " + (buf[-1] if buf else "")}
 
     def stop(self):
-        # 停掉所有指向目标的 cloudflared 进程；保留已保存的 url(供下次 start 复用/显示)
-        killed = _kill_tunnel_processes(8095)
+        # 只停 state 记录的本平台 cloudflared；其他程序(如 DSH)的隧道绝不动
+        killed = _kill_tunnel_processes()
         self.proc = None
         self.url = None
         self.phase = "off"
@@ -252,16 +257,19 @@ _tunnel = Tunnel()
 
 
 def _find_tunnel_process(port):
-    """查找指向指定端口的 cloudflared 进程，返回 (存在, 可能已保存的url)。
-    用 tasklist(CSV) 而非 wmic(wmic 已被微软弃用, Win11 24H2 起可能移除)。"""
-    import subprocess as sp
-    pids = _list_cloudflared_pids()
-    if not pids:
-        return None, None
-    # 用命令行匹配: PowerShell/WMIC 弃用后最稳的纯标准库途径是 tasklist /v 拿不到完整命令行，
-    # 因此用"进程存在 + state 里记录了我们起的隧道"作为判据；url 一律以 state 为准。
+    """返回 (pid, url) —— 仅当 state 记录的自启 pid 仍在运行且确为 cloudflared 进程。
+    关键安全点：其他程序的 cloudflared（如 DSH 远程访问隧道）不在本平台 state 中，
+    绝不会被认领、误判为"本平台隧道在跑"或被误杀。port 保留作接口兼容/日志用。"""
     st = _load_state()
-    return pids[0], st.get("url")
+    pid = st.get("pid")
+    if pid and _is_cloudflared_running(pid):
+        return pid, st.get("url")
+    return None, None
+
+
+def _is_cloudflared_running(pid):
+    """指定 pid 是否仍是存活的 cloudflared 进程。"""
+    return str(pid) in _list_cloudflared_pids()
 
 
 def _list_cloudflared_pids():
@@ -284,17 +292,21 @@ def _list_cloudflared_pids():
     return pids
 
 
-def _kill_tunnel_processes(port):
-    """杀掉 cloudflared 进程(用 tasklist 找 PID + taskkill)。返回杀掉的进程数。"""
+def _kill_tunnel_processes():
+    """只杀 state 记录的本平台自启 cloudflared（精确 PID），返回杀掉的进程数。
+    绝不遍历杀"所有 cloudflared"，避免误杀其他程序(如 DSH)的隧道。"""
     import subprocess as sp
-    n = 0
-    for pid in _list_cloudflared_pids():
-        try:
-            sp.run(["taskkill", "/PID", pid, "/F"], capture_output=True, timeout=8)
-            n += 1
-        except Exception:
-            pass
-    return n
+    st = _load_state()
+    pid = st.get("pid")
+    if not pid:
+        return 0
+    if not _is_cloudflared_running(pid):
+        return 0
+    try:
+        sp.run(["taskkill", "/PID", str(pid), "/F"], capture_output=True, timeout=8)
+        return 1
+    except Exception:
+        return 0
 
 
 def status():
