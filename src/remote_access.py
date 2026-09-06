@@ -319,7 +319,7 @@ def _list_cloudflared_pids():
 
 def _kill_tunnel_processes():
     """只杀本平台自启的 cloudflared，返回杀掉的进程数。
-    优先按 state 记录的精确 PID；state 失效时按命令行匹配指向代理端口的隧道兜底。
+    优先级：state 精确 PID → PowerShell 按命令行(指向代理端口) → state 旧 pid 保守尝试。
     绝不遍历杀"所有 cloudflared"，避免误杀其他程序(如 DSH)的隧道。"""
     import subprocess as sp
     st = _load_state()
@@ -331,6 +331,8 @@ def _kill_tunnel_processes():
         pid2 = _find_owned_cloudflared_pid(8095)
         if pid2:
             targets.append(pid2)
+        elif pid:  # PowerShell 不可用/失败时：保守尝试 kill state 记录的旧 pid（仅我们起过的）
+            targets.append(str(pid))
     if not targets:
         return 0
     try:
