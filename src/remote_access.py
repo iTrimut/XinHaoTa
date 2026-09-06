@@ -264,12 +264,37 @@ def _find_tunnel_process(port):
     pid = st.get("pid")
     if pid and _is_cloudflared_running(pid):
         return pid, st.get("url")
+    # 兜底：state 无有效 pid 时（如旧版本/state 被删），按命令行匹配本平台隧道(指向代理端口)
+    # 而不是认领任意 cloudflared —— 依旧不会误认 DSH 等其它程序的隧道
+    pid2 = _find_owned_cloudflared_pid(port)
+    if pid2:
+        return pid2, st.get("url")
     return None, None
 
 
 def _is_cloudflared_running(pid):
     """指定 pid 是否仍是存活的 cloudflared 进程。"""
     return str(pid) in _list_cloudflared_pids()
+
+
+def _find_owned_cloudflared_pid(port):
+    """用 PowerShell 查 cloudflared 进程命令行，返回指向 http://127.0.0.1:<port> 的 PID(若有)。
+    纯 tasklist 拿不到命令行；PowerShell 是 Windows 自带。绝不匹配其他端口(如 DSH 的隧道)。"""
+    import subprocess as sp
+    try:
+        out = sp.check_output(
+            ["powershell", "-NoProfile", "-Command",
+             f"Get-CimInstance Win32_Process -Filter \"Name='cloudflared.exe'\" | "
+             f"Where-Object {{ $_.CommandLine -like '*--url http://127.0.0.1:{port}*' }} | "
+             f"Select-Object -ExpandProperty ProcessId"],
+            text=True, timeout=10, errors="replace")
+    except Exception:
+        return None
+    for ln in out.splitlines():
+        ln = ln.strip()
+        if ln.isdigit():
+            return ln
+    return None
 
 
 def _list_cloudflared_pids():
@@ -293,17 +318,23 @@ def _list_cloudflared_pids():
 
 
 def _kill_tunnel_processes():
-    """只杀 state 记录的本平台自启 cloudflared（精确 PID），返回杀掉的进程数。
+    """只杀本平台自启的 cloudflared，返回杀掉的进程数。
+    优先按 state 记录的精确 PID；state 失效时按命令行匹配指向代理端口的隧道兜底。
     绝不遍历杀"所有 cloudflared"，避免误杀其他程序(如 DSH)的隧道。"""
     import subprocess as sp
     st = _load_state()
+    targets = []
     pid = st.get("pid")
-    if not pid:
-        return 0
-    if not _is_cloudflared_running(pid):
+    if pid and _is_cloudflared_running(pid):
+        targets.append(str(pid))
+    else:
+        pid2 = _find_owned_cloudflared_pid(8095)
+        if pid2:
+            targets.append(pid2)
+    if not targets:
         return 0
     try:
-        sp.run(["taskkill", "/PID", str(pid), "/F"], capture_output=True, timeout=8)
+        sp.run(["taskkill", "/PID", targets[0], "/F"], capture_output=True, timeout=8)
         return 1
     except Exception:
         return 0

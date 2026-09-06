@@ -59,8 +59,7 @@ def state_machine(rows):
     # ①需"前面曾有一波多头(近15日内曾收盘站上当日MA20)" + 当前回踩到 ma5 附近
     # 用滚动 MA20 判定：收盘价 vs 该日自己的 MA20，避免"用今日MA20比历史价"把阴跌也误判成多头
     had_uptrend = False
-    start = max(20, i - 15)
-    for j in range(start, i):
+    for j in range(max(0, i - 15), i):  # 不含当日；窗口前数据不足时按能算的天数判定
         ma20_j = ma(closes, 20, j)
         if ma20_j is not None and closes[j] > ma20_j:
             had_uptrend = True
