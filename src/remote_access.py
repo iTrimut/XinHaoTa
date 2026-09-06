@@ -236,10 +236,13 @@ class Tunnel:
             _save_state({"url": url, "started_at": dt.datetime.now().isoformat(),
                          "pid": self.proc.pid})
             return {"ok": True, "url": url}
-        # 超时；若自己启动的进程实际在跑且 state 有 url，则复用
-        _, furl = _find_tunnel_process(port)
+        # 超时；若自己启动的进程实际在跑（state pid 或命令行匹配），则复用并同步 pid 到 state
+        fpid, furl = _find_tunnel_process(port)
         if furl:
-            self.phase = "ready"; self.url = furl
+            self.phase = "ready"
+            self.url = furl
+            if fpid:
+                _save_state({"url": furl, "started_at": dt.datetime.now().isoformat(), "pid": fpid})
             return {"ok": True, "url": furl}
         self.phase = "error"
         return {"ok": False, "msg": "tunnel 启动超时: " + (buf[-1] if buf else "")}
@@ -319,8 +322,8 @@ def _list_cloudflared_pids():
 
 def _kill_tunnel_processes():
     """只杀本平台自启的 cloudflared，返回杀掉的进程数。
-    优先级：state 精确 PID → PowerShell 按命令行(指向代理端口) → state 旧 pid 保守尝试。
-    绝不遍历杀"所有 cloudflared"，避免误杀其他程序(如 DSH)的隧道。"""
+    优先级：state 精确 PID → PowerShell 按命令行(指向代理端口)。
+    两者都失败时返回 0（宁可停不掉也绝不误杀——旧 pid 可能已被系统复用给别的进程）。"""
     import subprocess as sp
     st = _load_state()
     targets = []
@@ -331,8 +334,6 @@ def _kill_tunnel_processes():
         pid2 = _find_owned_cloudflared_pid(8095)
         if pid2:
             targets.append(pid2)
-        elif pid:  # PowerShell 不可用/失败时：保守尝试 kill state 记录的旧 pid（仅我们起过的）
-            targets.append(str(pid))
     if not targets:
         return 0
     try:
