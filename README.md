@@ -90,7 +90,7 @@ python web_server.py 8090          # 或手动命令
 
 ```
 XinHaoTa/
-├── watchlist.md        ← 自选股示例（网页可增删）
+├── watchlist.md        ← 示例初始自选（真实自选存 config.json，不入库）
 ├── datasource.json     ← 数据源配置（sina/tencent/eastmoney/file/http）
 ├── install.bat         ← ★ 一键安装并启动（检查Python+装依赖+开浏览器）
 ├── web_server.py       ← 网页服务（入口）

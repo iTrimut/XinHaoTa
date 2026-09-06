@@ -296,6 +296,10 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"node": node, "stocks": industry_mod.industry_stocks(node)})
         elif path.startswith("/api/analyze/"):
             code = path.split("/")[-1]
+            # 与其他 code 入口一致：仅接受 6 位数字，杜绝路径/文件名注入
+            if not re.fullmatch(r"\d{6}", code):
+                self._send_error("invalid code", 400)
+                return
             self._send_json(analyze_arbitrary(code))
         elif path == "/api/remote":
             self._send_json(remote_mod.status())
