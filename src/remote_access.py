@@ -28,6 +28,11 @@ STATE_FILE = os.path.join(BASE, "data", "remote_state.json")
 _BACKEND = "127.0.0.1:8090"   # 平台真实端口
 _proxy = None                 # 代理服务器对象
 
+# 子进程不弹窗：平台可能以 pythonw(无控制台) 常驻后台，若被调用的
+# powershell/cloudflared/tasklist/taskkill 不指定 CREATE_NO_WINDOW，
+# Windows 会给它们新建控制台窗口并闪现（打开网页探测远程状态时尤其明显）。
+_NO_WINDOW = 0x08000000  # subprocess.CREATE_NO_WINDOW
+
 
 def _find_cloudflared():
     """找 cloudflared 二进制：仓库内 bin/ -> PATH。
@@ -40,7 +45,8 @@ def _find_cloudflared():
         if os.path.exists(c):
             return c
     try:
-        subprocess.run(["cloudflared", "--version"], capture_output=True, timeout=5)
+        subprocess.run(["cloudflared", "--version"], capture_output=True, timeout=5,
+                       creationflags=_NO_WINDOW)
         return "cloudflared"
     except Exception:
         return None
@@ -186,6 +192,30 @@ def start_proxy(port=8095, backend="127.0.0.1:8090"):
 
 
 # ---------- cloudflared 隧道 ----------
+def _ensure_proxy(port):
+    """确保密码代理在 <port> 监听；未在跑则无窗口拉起 remote_proxy.py 并等它就绪。
+    开启公网隧道前必须先有代理——否则公网流量转到代理端口无人应答，页面打不开。"""
+    if _proxy_alive(port):
+        return True
+    proxy_script = os.path.join(BASE, "remote_proxy.py")
+    if not os.path.exists(proxy_script):
+        return False
+    # 优先用 pythonw（无窗口）；找不到则退回当前解释器
+    pyw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+    if not os.path.exists(pyw):
+        pyw = sys.executable
+    try:
+        subprocess.Popen([pyw, proxy_script, str(port), _BACKEND],
+                         cwd=BASE, creationflags=_NO_WINDOW)
+    except Exception:
+        return False
+    for _ in range(12):          # 最多等 6 秒
+        time.sleep(0.5)
+        if _proxy_alive(port):
+            return True
+    return False
+
+
 class Tunnel:
     """基于"进程级"的隧道管理：查找/启停真实运行的 cloudflared 进程。
     这样不论隧道由哪个进程(start_remote / web_server / 手动)启动，都统一受控。"""
@@ -196,6 +226,10 @@ class Tunnel:
         self.phase = "off"
 
     def start(self, port, timeout=45):
+        # 先确保密码代理在跑（公网入口的密码层），否则隧道通了页面也打不开
+        if not _ensure_proxy(port):
+            self.phase = "error"
+            return {"ok": False, "msg": f"密码代理(:{port})启动失败，无法开启公网"}
         # 若已有自己启动的 cloudflared 进程在跑（state 记录的 pid 存活）→ 视为已开启（复用 url）
         ex, exurl = _find_tunnel_process(port)
         if ex and exurl:
@@ -211,7 +245,7 @@ class Tunnel:
         # 用 PIPE 读 stdout，可靠提取 trycloudflare URL
         self.proc = subprocess.Popen(
             [bin_, "tunnel", "--no-autoupdate", "--url", f"http://127.0.0.1:{port}"],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, creationflags=0x08000000)
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, creationflags=_NO_WINDOW)
         url = None
         buf = []
         deadline = time.time() + timeout
@@ -284,15 +318,16 @@ def _find_owned_cloudflared_pid(port):
     """用 PowerShell 查 cloudflared 进程命令行，返回指向 <port> 的 PID(若有)。
     纯 tasklist 拿不到命令行；PowerShell 是 Windows 自带。
     匹配 `--url ...<port>`（兼容 localhost/127.0.0.1/带不带 scheme 等写法）；
-    端口是唯一判据——绝不匹配其他端口(如 DSH 的隧道)。"""
+    端口是唯一判据——绝不匹配其他端口(如 DSH 的隧道)。全程无窗口。"""
     import subprocess as sp
     try:
         out = sp.check_output(
-            ["powershell", "-NoProfile", "-Command",
+            ["powershell", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command",
              f"Get-CimInstance Win32_Process -Filter \"Name='cloudflared.exe'\" | "
              f"Where-Object {{ $_.CommandLine -match '--url .*:{port}(/|\\s|$)' }} | "
              f"Select-Object -ExpandProperty ProcessId"],
-            text=True, timeout=10, errors="replace")
+            text=True, timeout=10, errors="replace",
+            creationflags=_NO_WINDOW)
     except Exception:
         return None
     for ln in out.splitlines():
@@ -303,11 +338,12 @@ def _find_owned_cloudflared_pid(port):
 
 
 def _list_cloudflared_pids():
-    """列出所有 cloudflared 进程 PID(tasklist CSV 解析, 纯标准库)。"""
+    """列出所有 cloudflared 进程 PID(tasklist CSV 解析, 纯标准库)。无窗口。"""
     import subprocess as sp
     try:
         out = sp.check_output(["tasklist", "/fo", "csv", "/fi", "IMAGENAME eq cloudflared.exe"],
-                              text=True, timeout=8, errors="replace")
+                              text=True, timeout=8, errors="replace",
+                              creationflags=_NO_WINDOW)
     except Exception:
         return []
     pids = []
@@ -339,7 +375,8 @@ def _kill_tunnel_processes():
     if not targets:
         return 0
     try:
-        sp.run(["taskkill", "/PID", targets[0], "/F"], capture_output=True, timeout=8)
+        sp.run(["taskkill", "/PID", targets[0], "/F"], capture_output=True, timeout=8,
+               creationflags=_NO_WINDOW)
         return 1
     except Exception:
         return 0
