@@ -224,6 +224,32 @@ class Tunnel:
         self.proc = None
         self.url = None
         self.phase = "off"
+        self.log_path = os.path.join(BASE, "data", "tunnel.log")
+
+    def _open_log(self):
+        """打开隧道日志(追加)。cloudflared 输出直接重定向到该文件——
+        比 PIPE 更稳（无缓冲写满/阻塞风险），且日志即时落盘便于排查公网问题。"""
+        os.makedirs(os.path.dirname(self.log_path), exist_ok=True)
+        try:
+            if os.path.exists(self.log_path) and os.path.getsize(self.log_path) > 1024 * 1024:
+                os.replace(self.log_path, self.log_path + ".1")
+        except Exception:
+            pass
+        f = open(self.log_path, "a", encoding="utf-8", errors="replace")
+        f.write(f"\n--- cloudflared started {dt.datetime.now().isoformat()} ---\n")
+        f.flush()
+        return f
+
+    def _read_log_tail(self, nbytes=16384):
+        """读取日志尾部，用于从中提取 trycloudflare URL。"""
+        try:
+            with open(self.log_path, "rb") as f:
+                f.seek(0, os.SEEK_END)
+                size = f.tell()
+                f.seek(max(0, size - nbytes))
+                return f.read().decode("utf-8", errors="replace")
+        except Exception:
+            return ""
 
     def start(self, port, timeout=45):
         # 先确保密码代理在跑（公网入口的密码层），否则隧道通了页面也打不开
@@ -242,27 +268,22 @@ class Tunnel:
         if not bin_:
             self.phase = "error"
             return {"ok": False, "msg": "cloudflared 未找到"}
-        # 用 PIPE 读 stdout，可靠提取 trycloudflare URL
+        # 协议固定 http2(TCP 443)：cloudflared 默认 QUIC(UDP) 在国内网络常连不上边缘
+        # （日志停在 ICMP proxy、从不输出 Registered tunnel connection），
+        # 表现为隧道看似在跑但公网地址打不开（手机访问得到 Cloudflare 错误页）；http2 更稳。
+        # 输出重定向到日志文件（不用 PIPE）：无写满阻塞风险，且日志即时落盘便于排查。
+        logf = self._open_log()
         self.proc = subprocess.Popen(
-            [bin_, "tunnel", "--no-autoupdate", "--url", f"http://127.0.0.1:{port}"],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, creationflags=_NO_WINDOW)
+            [bin_, "tunnel", "--no-autoupdate", "--protocol", "http2", "--url", f"http://127.0.0.1:{port}"],
+            stdout=logf, stderr=subprocess.STDOUT, creationflags=_NO_WINDOW)
         url = None
-        buf = []
         deadline = time.time() + timeout
-        import time as _t
         while time.time() < deadline and self.proc.poll() is None:
-            line = ""
-            try:
-                line = self.proc.stdout.readline()
-            except Exception:
-                _t.sleep(0.2)
-                continue
-            if line:
-                buf.append(line.rstrip())
-                m = re.search(r"https://[a-z0-9-]+\.trycloudflare\.com", line)
-                if m:
-                    url = m.group(0)
-                    break
+            time.sleep(0.5)
+            m = re.search(r"https://[a-z0-9-]+\.trycloudflare\.com", self._read_log_tail())
+            if m:
+                url = m.group(0)
+                break
         if url:
             self.phase = "ready"
             self.url = url
@@ -279,7 +300,8 @@ class Tunnel:
                 _save_state({"url": furl, "started_at": dt.datetime.now().isoformat(), "pid": fpid})
             return {"ok": True, "url": furl}
         self.phase = "error"
-        return {"ok": False, "msg": "tunnel 启动超时: " + (buf[-1] if buf else "")}
+        tail = self._read_log_tail(2048).strip().splitlines()
+        return {"ok": False, "msg": "tunnel 启动超时: " + (tail[-1] if tail else "")}
 
     def stop(self):
         # 只停 state 记录的本平台 cloudflared；其他程序(如 DSH)的隧道绝不动
