@@ -224,6 +224,48 @@ class Tunnel:
         self.proc = None
         self.url = None
         self.phase = "off"
+        self.log_path = os.path.join(BASE, "data", "tunnel.log")
+        self._logf = None           # 隧道日志文件句柄（stop 时关闭，避免句柄泄漏）
+        self._log_pos = 0           # 本次启动在日志中的起点（只读新增内容，避免匹配历史 URL）
+
+    def _open_log(self):
+        """打开隧道日志(追加)。cloudflared 输出直接重定向到该文件——
+        比 PIPE 更稳（无缓冲写满/阻塞风险），且日志即时落盘便于排查公网问题。
+        同时记录本次启动的日志起点 _log_pos。"""
+        os.makedirs(os.path.dirname(self.log_path), exist_ok=True)
+        try:
+            if os.path.exists(self.log_path) and os.path.getsize(self.log_path) > 1024 * 1024:
+                os.replace(self.log_path, self.log_path + ".1")
+        except Exception:
+            pass
+        f = open(self.log_path, "a", encoding="utf-8", errors="replace")
+        f.write(f"\n--- cloudflared started {dt.datetime.now().isoformat()} ---\n")
+        f.flush()
+        try:
+            self._log_pos = f.tell()        # 本次启动之后的内容起点
+        except Exception:
+            self._log_pos = 0
+        return f
+
+    def _close_log(self):
+        """关闭日志句柄（stop / 重新 start 前调用，避免句柄泄漏）。"""
+        try:
+            if self._logf:
+                self._logf.close()
+        except Exception:
+            pass
+        self._logf = None
+
+    def _read_new_log(self, max_bytes=65536):
+        """只读本次启动后新增的日志。
+        关键：若连历史日志一起读，会匹配到以往隧道的 URL——表现为新隧道申请失败
+        却返回早已失效的旧地址（用户访问得到 Cloudflare 错误页）。"""
+        try:
+            with open(self.log_path, "rb") as fh:
+                fh.seek(self._log_pos)
+                return fh.read(max_bytes).decode("utf-8", errors="replace")
+        except Exception:
+            return ""
 
     def start(self, port, timeout=45):
         # 先确保密码代理在跑（公网入口的密码层），否则隧道通了页面也打不开
@@ -242,48 +284,51 @@ class Tunnel:
         if not bin_:
             self.phase = "error"
             return {"ok": False, "msg": "cloudflared 未找到"}
-        # 用 PIPE 读 stdout，可靠提取 trycloudflare URL
+        # 协议固定 http2(TCP 443)：cloudflared 默认 QUIC(UDP) 在国内网络常连不上边缘
+        # （日志停在 ICMP proxy、从不输出 Registered tunnel connection），
+        # 表现为隧道看似在跑但公网地址打不开（手机访问得到 Cloudflare 错误页）；http2 更稳。
+        # 输出重定向到日志文件（不用 PIPE）：无写满阻塞风险，且日志即时落盘便于排查。
+        self._close_log()                       # 先关掉上次残留的句柄
+        self._logf = self._open_log()
         self.proc = subprocess.Popen(
-            [bin_, "tunnel", "--no-autoupdate", "--url", f"http://127.0.0.1:{port}"],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, creationflags=_NO_WINDOW)
+            [bin_, "tunnel", "--no-autoupdate", "--protocol", "http2", "--url", f"http://127.0.0.1:{port}"],
+            stdout=self._logf, stderr=subprocess.STDOUT, creationflags=_NO_WINDOW)
         url = None
-        buf = []
         deadline = time.time() + timeout
-        import time as _t
+        # 只读本次启动后新增的日志；排除 api.trycloudflare.com（那是申请接口，不是隧道地址）
+        url_re = re.compile(r"https://(?!api\.)[a-z0-9-]+\.trycloudflare\.com")
         while time.time() < deadline and self.proc.poll() is None:
-            line = ""
-            try:
-                line = self.proc.stdout.readline()
-            except Exception:
-                _t.sleep(0.2)
-                continue
-            if line:
-                buf.append(line.rstrip())
-                m = re.search(r"https://[a-z0-9-]+\.trycloudflare\.com", line)
-                if m:
-                    url = m.group(0)
-                    break
+            time.sleep(0.5)
+            m = url_re.search(self._read_new_log())
+            if m:
+                url = m.group(0)
+                break
         if url:
+            # 等隧道真正注册成功再报成功——否则地址可能尚不可用
+            reg_deadline = time.time() + 20
+            while time.time() < reg_deadline:
+                if "Registered tunnel connection" in self._read_new_log():
+                    break
+                if self.proc.poll() is not None:
+                    break
+                time.sleep(0.5)
             self.phase = "ready"
             self.url = url
             # 记录自启进程 pid，stop 只精确杀自己起的隧道，避免误杀其他程序(如 DSH 远程访问)的 cloudflared
             _save_state({"url": url, "started_at": dt.datetime.now().isoformat(),
                          "pid": self.proc.pid})
             return {"ok": True, "url": url}
-        # 超时；若自己启动的进程实际在跑（state pid 或命令行匹配），则复用并同步 pid 到 state
-        fpid, furl = _find_tunnel_process(port)
-        if furl:
-            self.phase = "ready"
-            self.url = furl
-            if fpid:
-                _save_state({"url": furl, "started_at": dt.datetime.now().isoformat(), "pid": fpid})
-            return {"ok": True, "url": furl}
+        # 失败：不要复用 state 里的旧 url——那可能是已失效的隧道（访问得到 Cloudflare 错误页）
+        self._close_log()
         self.phase = "error"
-        return {"ok": False, "msg": "tunnel 启动超时: " + (buf[-1] if buf else "")}
+        tail = [ln for ln in self._read_new_log(4096).strip().splitlines() if ln.strip()]
+        reason = tail[-1][:200] if tail else "无输出"
+        return {"ok": False, "msg": "隧道启动失败: " + reason}
 
     def stop(self):
         # 只停 state 记录的本平台 cloudflared；其他程序(如 DSH)的隧道绝不动
         killed = _kill_tunnel_processes()
+        self._close_log()               # 进程已停，关闭日志句柄
         self.proc = None
         self.url = None
         self.phase = "off"
