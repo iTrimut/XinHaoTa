@@ -225,6 +225,7 @@ class Tunnel:
         self.url = None
         self.phase = "off"
         self.log_path = os.path.join(BASE, "data", "tunnel.log")
+        self._logf = None           # 隧道日志文件句柄（stop 时关闭，避免句柄泄漏）
 
     def _open_log(self):
         """打开隧道日志(追加)。cloudflared 输出直接重定向到该文件——
@@ -239,6 +240,15 @@ class Tunnel:
         f.write(f"\n--- cloudflared started {dt.datetime.now().isoformat()} ---\n")
         f.flush()
         return f
+
+    def _close_log(self):
+        """关闭日志句柄（stop / 重新 start 前调用，避免句柄泄漏）。"""
+        try:
+            if self._logf:
+                self._logf.close()
+        except Exception:
+            pass
+        self._logf = None
 
     def _read_log_tail(self, nbytes=16384):
         """读取日志尾部，用于从中提取 trycloudflare URL。"""
@@ -272,10 +282,11 @@ class Tunnel:
         # （日志停在 ICMP proxy、从不输出 Registered tunnel connection），
         # 表现为隧道看似在跑但公网地址打不开（手机访问得到 Cloudflare 错误页）；http2 更稳。
         # 输出重定向到日志文件（不用 PIPE）：无写满阻塞风险，且日志即时落盘便于排查。
-        logf = self._open_log()
+        self._close_log()                       # 先关掉上次残留的句柄
+        self._logf = self._open_log()
         self.proc = subprocess.Popen(
             [bin_, "tunnel", "--no-autoupdate", "--protocol", "http2", "--url", f"http://127.0.0.1:{port}"],
-            stdout=logf, stderr=subprocess.STDOUT, creationflags=_NO_WINDOW)
+            stdout=self._logf, stderr=subprocess.STDOUT, creationflags=_NO_WINDOW)
         url = None
         deadline = time.time() + timeout
         while time.time() < deadline and self.proc.poll() is None:
@@ -306,6 +317,7 @@ class Tunnel:
     def stop(self):
         # 只停 state 记录的本平台 cloudflared；其他程序(如 DSH)的隧道绝不动
         killed = _kill_tunnel_processes()
+        self._close_log()               # 进程已停，关闭日志句柄
         self.proc = None
         self.url = None
         self.phase = "off"
